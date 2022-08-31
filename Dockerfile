@@ -3,13 +3,15 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-ARG FROM_IMAGE_NAME=pytorch/pytorch:1.3-cuda10.1-cudnn7-runtime
+ARG FROM_IMAGE_NAME=pytorch/pytorch:1.4-cuda10.1-cudnn7-runtime
 FROM ${FROM_IMAGE_NAME}
 
-ADD requirements.txt .
+ADD . /code
+WORKDIR /code
+
 RUN pip install -r requirements.txt
 
-RUN pip install torch==1.3.1
+RUN git clone https://github.com/mlperf/logging.git mlperf-logging
+RUN pip install --ignore-installed -e mlperf-logging
 
-WORKDIR /code
-ADD . .
+RUN pip install tensorboard
