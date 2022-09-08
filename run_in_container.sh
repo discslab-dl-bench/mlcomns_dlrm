@@ -25,9 +25,9 @@ python dlrm_s_pytorch.py \
 --processed-data-file=/data_kaggle/kaggleAdDisplayChallenge_processed.npz \
 --loss-function=bce \
 --round-targets=True \
---learning-rate=1.0 \
---mini-batch-size=2048 \
---print-freq=2048 \
+--learning-rate=0.1 \
+--mini-batch-size=128 \
+--print-freq=1024 \
 --test-mini-batch-size=16384 \
 --test-num-workers=16 $dlrm_extra_option 2>&1 | tee /code/input/run_kaggle.log
 
