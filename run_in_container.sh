@@ -29,12 +29,17 @@ python dlrm_s_pytorch.py \
 --mini-batch-size=128 \
 --print-freq=1024 \
 --test-mini-batch-size=16384 \
---test-num-workers=16 $dlrm_extra_option 2>&1 | tee /code/input/run_kaggle.log
+--mlperf-logging \
+--mlperf-bin-loader \
+--mlperf-bin-shuffle \
+--test-num-workers=16 $dlrm_extra_option 2>&1 | tee /code/input/run_kaggle_mlperf.log
 
 # end timing
 end=$(date +%s)
 end_fmt=$(date +%Y-%m-%d\ %r)
 echo "---End running dlrm at $end_fmt---"
+
+cp /code/dlrm.log /mlperf_saving_spot
 
 echo "done"
 # report result
