@@ -16,6 +16,7 @@ echo "---Start running dlrm at $start_fmt---"
 
 python dlrm_s_pytorch.py \
 --use-gpu \
+--dataset-multiprocessing \
 --arch-sparse-feature-size=16 \
 --arch-mlp-bot="13-512-256-64-16" \
 --arch-mlp-top="512-256-1" \
@@ -32,7 +33,28 @@ python dlrm_s_pytorch.py \
 --mlperf-logging \
 --mlperf-bin-loader \
 --mlperf-bin-shuffle \
---test-num-workers=16 $dlrm_extra_option 2>&1 | tee /code/input/run_kaggle_mlperf.log
+--test-num-workers=16 $dlrm_extra_option 2>&1 | tee /code/input/run_kaggle_mlperf_tV2.log
+
+# python dlrm_s_pytorch.py \
+# --use-gpu \
+# --dataset-multiprocessing \
+# --arch-sparse-feature-size=16 \
+# --arch-mlp-bot="13-512-256-64-16" \
+# --arch-mlp-top="512-256-1" \
+# --data-generation=dataset \
+# --data-set=kaggle \
+# --raw-data-file=/data_kaggle/train42_200g.txt \
+# --processed-data-file=/data_kaggle/kaggleAdDisplayChallenge_processed_200g.npz \
+# --loss-function=bce \
+# --round-targets=True \
+# --learning-rate=0.1 \
+# --mini-batch-size=128 \
+# --print-freq=1024 \
+# --test-mini-batch-size=16384 \
+# --mlperf-logging \
+# --mlperf-bin-loader \
+# --mlperf-bin-shuffle \
+# --test-num-workers=16 $dlrm_extra_option 2>&1 | tee /code/input/run_kaggle_mlperf_200g.log
 
 # end timing
 end=$(date +%s)
