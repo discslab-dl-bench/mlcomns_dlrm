@@ -897,6 +897,7 @@ def getCriteoAdData(
 
     #split the datafile into path and filename
     lstr = datafile.split("/")
+    # d_file will be train if kaggle
     d_path = "/".join(lstr[0:-1]) + "/"
     d_file = lstr[-1].split(".")[0] if criteo_kaggle else lstr[-1]
     npzfile = d_path + ((d_file + "_day") if criteo_kaggle else d_file)
@@ -919,11 +920,13 @@ def getCriteoAdData(
             # missing and will be interpreted as 0).
             if path.exists(datafile):
                 print("Reading data from path=%s" % (datafile))
+                # Count the number of lines in the data file to get the total number of data points
                 with open(str(datafile)) as f:
                     for _ in f:
                         total_count += 1
-                total_per_file.append(total_count)
+                total_per_file.append(total_count) # Append the total number of data points to the list
                 # reset total per file due to split
+                # Split the total data points evenly into <days> number of files, reminder is handled by distributing them into first extra <days> files
                 num_data_per_split, extras = divmod(total_count, days)
                 total_per_file = [num_data_per_split] * days
                 for j in range(extras):
@@ -931,6 +934,8 @@ def getCriteoAdData(
                 # split into days (simplifies code later on)
                 file_id = 0
                 boundary = total_per_file[file_id]
+                # According to the line number calculated per day file, copy the corresponding lines from datafile into dayfiles
+                # Open each npz file (train_day_{n} without extension), and copy the corresponding lines from the raw dataset in it 
                 nf = open(npzfile + "_" + str(file_id), "w")
                 with open(str(datafile)) as f:
                     for j, line in enumerate(f):
@@ -1083,6 +1088,7 @@ def getCriteoAdData(
     # np.random.seed(123)
     # in this case there is a single split in each day
     for i in range(days):
+        #Remember that npzfile for kaggle is train_day
         npzfile_i = npzfile + "_{0}.npz".format(i)
         npzfile_p = npzfile + "_{0}_processed.npz".format(i)
         if path.exists(npzfile_i):

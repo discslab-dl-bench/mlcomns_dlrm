@@ -1014,6 +1014,7 @@ def run():
     global writer
     args = parser.parse_args()
 
+    # To use the datase_multiprocessing feature, we have a requirement on the python version
     if args.dataset_multiprocessing:
         assert float(sys.version[:3]) > 3.7, "The dataset_multiprocessing " + \
         "flag is susceptible to a bug in Python 3.7 and under. " + \
@@ -1077,6 +1078,7 @@ def run():
         print("Using CPU...")
 
     ### prepare training data ###
+    #Convert the following to numpy array
     ln_bot = np.fromstring(args.arch_mlp_bot, dtype=int, sep="-")
     # input data
 
@@ -1088,6 +1090,7 @@ def run():
         mlperf_logger.barrier()
 
     if args.data_generation == "dataset":
+        # The direction that we usually go for
         train_data, train_ld, test_data, test_ld = dp.make_criteo_data_and_loaders(args)
         table_feature_map = {idx: idx for idx in range(len(train_data.counts))}
         nbatches = args.num_batches if args.num_batches > 0 else len(train_ld)

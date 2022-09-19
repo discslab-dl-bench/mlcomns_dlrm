@@ -80,11 +80,15 @@ class CriteoDataset(Dataset):
 
         # split the datafile into path and filename
         lstr = raw_path.split("/")
+        #Get raw file path except the last file name
         self.d_path = "/".join(lstr[0:-1]) + "/"
+        #Get raw file name, if it is kaggle (train.txt), the file name will be "train"
         self.d_file = lstr[-1].split(".")[0] if dataset == "kaggle" else lstr[-1]
+        #With the format train_day
         self.npzfile = self.d_path + (
             (self.d_file + "_day") if dataset == "kaggle" else self.d_file
         )
+        #With the format train_fea
         self.trafile = self.d_path + (
             (self.d_file + "_fea") if dataset == "kaggle" else "fea"
         )
@@ -107,6 +111,9 @@ class CriteoDataset(Dataset):
             file = str(pro_data)
         else:
             print("Reading raw data=%s" % (str(raw_path)))
+            # The following function does most of the preprocessing by first define processed file name format, do preprocessing, and returns the file path
+            # For kaggle dataset, it splits the raw file into several day files evenly, and then 
+            # For terabyte dataset, it reads each day file, calculate lines in each day file and the total lines for all the day files
             file = data_utils.getCriteoAdData(
                 raw_path,
                 out_file,
@@ -422,18 +429,22 @@ def make_criteo_data_and_loaders(args, offset_to_length_converter=False):
         data_directory = path.dirname(args.raw_data_file)
 
         if args.mlperf_bin_loader:
+            # lstr is the splitted string with each component of the processed data file path
             lstr = args.processed_data_file.split("/")
+            # d_path contain the first to second last file path with the first component of file name splitted by .
             d_path = "/".join(lstr[0:-1]) + "/" + lstr[-1].split(".")[0]
             train_file = d_path + "_train.bin"
             test_file = d_path + "_test.bin"
             # val_file = d_path + "_val.bin"
             counts_file = args.raw_data_file + '_fea_count.npz'
 
+            #If any of the file does not exist, we run the following function, which calls another function to convert the data to a binary format to be read with CriteoBinDataset from the raw file
             if any(not path.exists(p) for p in [train_file,
                                                 test_file,
                                                 counts_file]):
                 ensure_dataset_preprocessed(args, d_path)
 
+            #Create the binary version of the criteo dataset
             train_data = data_loader_terabyte.CriteoBinDataset(
                 data_file=train_file,
                 counts_file=counts_file,
@@ -444,6 +455,8 @@ def make_criteo_data_and_loaders(args, offset_to_length_converter=False):
             mlperf_logger.log_event(key=mlperf_logger.constants.TRAIN_SAMPLES,
                                     value=train_data.num_samples)
 
+            # When both batch_size and batch_sampler are None (default value for batch_sampler is already None), automatic batching is disabled. Each sample obtained from the dataset is processed with the function passed as the collate_fn argument.
+            # #When automatic batching is disabled, the default collate_fn simply converts NumPy arrays into PyTorch Tensors, and keeps everything else untouched.
             train_loader = torch.utils.data.DataLoader(
                 train_data,
                 batch_size=None,
@@ -456,6 +469,7 @@ def make_criteo_data_and_loaders(args, offset_to_length_converter=False):
                 sampler=RandomSampler(train_data) if args.mlperf_bin_shuffle else None
             )
 
+            # Note: CriteoBinDataset is a Map-style dataset
             test_data = data_loader_terabyte.CriteoBinDataset(
                 data_file=test_file,
                 counts_file=counts_file,
@@ -466,6 +480,7 @@ def make_criteo_data_and_loaders(args, offset_to_length_converter=False):
             mlperf_logger.log_event(key=mlperf_logger.constants.EVAL_SAMPLES,
                                     value=test_data.num_samples)
 
+            #Same logic as above but now we have a dataloader for the test dataset
             test_loader = torch.utils.data.DataLoader(
                 test_data,
                 batch_size=None,
@@ -477,8 +492,10 @@ def make_criteo_data_and_loaders(args, offset_to_length_converter=False):
                 drop_last=False,
             )
         else:
+            #Get the filename by splitting the path and then get the last element
             data_filename = args.raw_data_file.split("/")[-1]
 
+            #Now the dataset is not binary
             train_data = CriteoDataset(
                 args.data_set,
                 args.max_ind_range,
@@ -506,7 +523,7 @@ def make_criteo_data_and_loaders(args, offset_to_length_converter=False):
             train_loader = data_loader_terabyte.DataLoader(
                 data_directory=data_directory,
                 data_filename=data_filename,
-                days=list(range(23)),
+                days=list(range(23)), ## Question: why here is 23 instead of 24 since we have 24 day files for terabyte?
                 batch_size=args.mini_batch_size,
                 max_ind_range=args.max_ind_range,
                 split="train"
@@ -515,7 +532,7 @@ def make_criteo_data_and_loaders(args, offset_to_length_converter=False):
             test_loader = data_loader_terabyte.DataLoader(
                 data_directory=data_directory,
                 data_filename=data_filename,
-                days=[23],
+                days=[23], ## Question: same as above
                 batch_size=args.test_mini_batch_size,
                 max_ind_range=args.max_ind_range,
                 split="test"
