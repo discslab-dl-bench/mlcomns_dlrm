@@ -1090,11 +1090,8 @@ def run():
         mlperf_logger.barrier()
 
     if args.data_generation == "dataset":
-<<<<<<< HEAD
         # The direction that we usually go for
-=======
         print("---------------------------Start Making Criteo Data and Loaders-----------------------------")
->>>>>>> main
         train_data, train_ld, test_data, test_ld = dp.make_criteo_data_and_loaders(args)
         table_feature_map = {idx: idx for idx in range(len(train_data.counts))}
         nbatches = args.num_batches if args.num_batches > 0 else len(train_ld)
