@@ -1058,7 +1058,7 @@ def run():
         args.test_num_workers = args.num_workers
 
     use_gpu = args.use_gpu and torch.cuda.is_available()
-
+    
     if not args.debug_mode:
         ext_dist.init_distributed(local_rank=args.local_rank, use_gpu=use_gpu, backend=args.dist_backend)
 
@@ -1088,6 +1088,7 @@ def run():
         mlperf_logger.barrier()
 
     if args.data_generation == "dataset":
+        print("---------------------------Start Making Criteo Data and Loaders-----------------------------")
         train_data, train_ld, test_data, test_ld = dp.make_criteo_data_and_loaders(args)
         table_feature_map = {idx: idx for idx in range(len(train_data.counts))}
         nbatches = args.num_batches if args.num_batches > 0 else len(train_ld)
@@ -1115,6 +1116,8 @@ def run():
         train_data, train_ld, test_data, test_ld = dp.make_random_data_and_loader(args, ln_emb, m_den)
         nbatches = args.num_batches if args.num_batches > 0 else len(train_ld)
         nbatches_test = len(test_ld)
+
+    print("-----------------------MAJOR PREPROCESSING COMPLETE----------------------")
 
     args.ln_emb = ln_emb.tolist()
     if args.mlperf_logging:
@@ -1185,6 +1188,8 @@ def run():
             + str(ln_top[0])
         )
 
+    print ("-----------------------Sanity Check Passed-----------------------")
+
     # assign mixed dimensions if applicable
     if args.md_flag:
         m_spa = md_solver(
@@ -1252,6 +1257,8 @@ def run():
 
     global ndevices
     ndevices = min(ngpus, args.mini_batch_size, num_fea - 1) if use_gpu else -1
+    
+    print("------------------------------Initializing DLRM Model Start----------------------------------")
 
     ### construct the neural network specified above ###
     # WARNING: to obtain exactly the same initialization for
@@ -1351,7 +1358,7 @@ def run():
         )
 
     ### main loop ###
-
+    print("--------------------------Main Loop Starts-----------------------------")
     # training or inference
     best_acc_test = 0
     best_auc_test = 0
