@@ -23,6 +23,7 @@ from os import path
 import sys
 import bisect
 import collections
+import logging
 
 import data_utils
 
@@ -39,6 +40,7 @@ from torch.utils.data import Dataset, RandomSampler
 import data_loader_terabyte
 import mlperf_logger
 
+from log_utils import utcnow
 
 # Kaggle Display Advertising Challenge Dataset
 # dataset (str): name of dataset (Kaggle or Terabyte)
@@ -107,10 +109,10 @@ class CriteoDataset(Dataset):
         # pre-process data if needed
         # WARNNING: when memory mapping is used we get a collection of files
         if data_ready:
-            print("Reading pre-processed data=%s" % (str(pro_data)))
+            logging.info("{} Reading pre-processed data={}".format(utcnow(), str(pro_data)))
             file = str(pro_data)
         else:
-            print("Reading raw data=%s" % (str(raw_path)))
+            logging.info("{} Reading raw data={}".format(utcnow(), str(raw_path)))
             # The following function does most of the preprocessing by first define processed file name format, do preprocessing, and returns the file path
             # For kaggle dataset, it splits the raw file into several day files evenly, and then 
             # For terabyte dataset, it reads each day file, calculate lines in each day file and the total lines for all the day files
@@ -193,7 +195,7 @@ class CriteoDataset(Dataset):
                 self.counts = data["counts"]
             self.m_den = den_fea  # X_int.shape[1]
             self.n_emb = len(self.counts)
-            print("Sparse features= %d, Dense features= %d" % (self.n_emb, self.m_den))
+            logging.info("{} Sparse features= {}, Dense features= {}".format(utcnow(), self.n_emb, self.m_den))
 
             # Load the test data
             # Only a single day is used for testing
@@ -216,7 +218,7 @@ class CriteoDataset(Dataset):
                 self.counts = data["counts"]
             self.m_den = X_int.shape[1]  # den_fea
             self.n_emb = len(self.counts)
-            print("Sparse fea = %d, Dense fea = %d" % (self.n_emb, self.m_den))
+            logging.info("{} Sparse fea = {}, Dense fea = {}".format(utcnow(), self.n_emb, self.m_den))
 
             # create reordering
             indices = np.arange(len(y))
@@ -225,7 +227,7 @@ class CriteoDataset(Dataset):
                 # randomize all data
                 if randomize == "total":
                     indices = np.random.permutation(indices)
-                    print("Randomized indices...")
+                    logging.info("{} Randomized indices...".format(utcnow()))
 
                 X_int[indices] = X_int
                 X_cat[indices] = X_cat
@@ -238,18 +240,18 @@ class CriteoDataset(Dataset):
                 if randomize == "day":  # or randomize == "total":
                     for i in range(len(indices) - 1):
                         indices[i] = np.random.permutation(indices[i])
-                    print("Randomized indices per day ...")
+                    logging.info("{} Randomized indices per day ...".format(utcnow()))
 
                 train_indices = np.concatenate(indices[:-1])
                 test_indices = indices[-1]
                 test_indices, val_indices = np.array_split(test_indices, 2)
 
-                print("Defined %s indices..." % (split))
+                logging.info("{} Defined {} indices...".format(utcnow(), split))
 
                 # randomize train data (across days)
                 if randomize == "total":
                     train_indices = np.random.permutation(train_indices)
-                    print("Randomized indices across days ...")
+                    logging.info("{} Randomized indices across days ...".format(utcnow()))
 
                 # create training, validation, and test sets
                 if split == 'train':
@@ -265,7 +267,7 @@ class CriteoDataset(Dataset):
                     self.X_cat = [X_cat[i] for i in test_indices]
                     self.y = [y[i] for i in test_indices]
 
-            print("Split data according to indices...")
+            logging.info("{} Split data according to indices...".format(utcnow()))
 
     def __getitem__(self, index):
 
@@ -374,7 +376,7 @@ def ensure_dataset_preprocessed(args, d_path):
     )
 
     for split in ['train', 'val', 'test']:
-        print('Running preprocessing for split =', split)
+        logging.info('{} Running preprocessing for split = {}'.format(utcnow(), split))
 
         train_files = ['{}_{}_reordered.npz'.format(args.raw_data_file, day)
                        for
@@ -619,7 +621,7 @@ class RandomDataset(Dataset):
         if num_batches != 0:
             nbatches = num_batches
             data_size = nbatches * mini_batch_size
-            # print("Total number of batches %d" % nbatches)
+            logging.info("{} Total number of batches {}".format(utcnow(), nbatches))
 
         # save args (recompute data_size if needed)
         self.m_den = m_den
@@ -1040,8 +1042,8 @@ def generate_synthetic_input_batch(
             minsg = np.min(sparse_group)
             maxsg = np.max(sparse_group)
             if (minsg < 0) or (size <= maxsg):
-                print(
-                    "WARNING: distribution is inconsistent with embedding "
+                logging.warn(
+                    "{} WARNING: distribution is inconsistent with embedding ".format(utcnow())
                     + "table size (using mod to recover and continue)"
                 )
                 sparse_group = np.mod(sparse_group, size).astype(np.int64)
@@ -1193,7 +1195,7 @@ def read_trace_from_file(file_path):
                 trace = list(map(lambda x: np.uint64(x), line.split(", ")))
             return trace
     except Exception:
-        print(f"ERROR: trace file '{file_path}' is not available.")
+        logging.error(f"{utcnow()} ERROR: trace file '{file_path}' is not available.")
 
 
 def write_trace_to_file(file_path, trace):
@@ -1206,7 +1208,7 @@ def write_trace_to_file(file_path, trace):
                 s = str(list(trace))
                 f.write(s[1 : len(s) - 1])
     except Exception:
-        print("ERROR: no output trace file has been provided")
+        logging.error(f"{utcnow()} ERROR: no output trace file has been provided")
 
 
 def read_dist_from_file(file_path):
@@ -1214,7 +1216,7 @@ def read_dist_from_file(file_path):
         with open(file_path, "r") as f:
             lines = f.read().splitlines()
     except Exception:
-        print("{file_path} Wrong file or file path")
+        logging.error(f"{utcnow()} {file_path} Wrong file or file path")
     # read unique accesses
     unique_accesses = [int(el) for el in lines[0].split(", ")]
     # read cumulative distribution (elements are passed as two separate lists)
@@ -1237,7 +1239,7 @@ def write_dist_to_file(file_path, unique_accesses, list_sd, cumm_sd):
             s = str(list(cumm_sd))
             f.write(s[1 : len(s) - 1] + "\n")
     except Exception:
-        print("Wrong file or file path")
+        logging.error(f"{utcnow()} Wrong file or file path")
 
 
 if __name__ == "__main__":

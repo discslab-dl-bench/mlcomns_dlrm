@@ -61,6 +61,7 @@ import datetime
 import json
 import sys
 import time
+import logging
 
 # onnx
 # The onnx import causes deprecation warnings every time workers
@@ -69,6 +70,7 @@ import warnings
 
 # data generation
 import dlrm_data_pytorch as dp
+from log_utils import utcnow
 
 # For distributed run
 import extend_distributed as ext_dist
@@ -109,7 +111,6 @@ with warnings.catch_warnings():
 # from torch.nn.parameter import Parameter
 
 exc = getattr(builtins, "IOError", "FileNotFoundError")
-
 
 def time_wrap(use_gpu):
     if use_gpu:
@@ -194,6 +195,8 @@ class LRPolicyScheduler(_LRScheduler):
 ### define dlrm in PyTorch ###
 class DLRM_Net(nn.Module):
     def create_mlp(self, ln, sigmoid_layer):
+        logging.info(f"{utcnow()} Creating MLP")
+        total_size=0
         # build MLP layer by layer
         layers = nn.ModuleList()
         for i in range(0, ln.size - 1):
@@ -202,7 +205,8 @@ class DLRM_Net(nn.Module):
 
             # construct fully connected operator
             LL = nn.Linear(int(n), int(m), bias=True)
-
+            logging.info(f"{utcnow()} Creating MLP layer {LL} = {n * m} elements and {m} biases each of size {np.dtype(np.float32).itemsize} B")
+            total_size += np.dtype(np.float32).itemsize * n * m + m * np.dtype(np.float32).itemsize
             # initialize the weights
             # with torch.no_grad():
             # custom Xavier input, output or two-sided fill
@@ -228,6 +232,7 @@ class DLRM_Net(nn.Module):
             else:
                 layers.append(nn.ReLU())
 
+        logging.info(f"{utcnow()} MLP created. Total size: {total_size} B")
         # approach 1: use ModuleList
         # return layers
         # approach 2: use Sequential container to wrap all layers
@@ -236,6 +241,8 @@ class DLRM_Net(nn.Module):
     def create_emb(self, m, ln, weighted_pooling=None):
         emb_l = nn.ModuleList()
         v_W_l = []
+        logging.info(f"{utcnow()} Creating embedding layers")
+        total_size = 0
         for i in range(0, ln.size):
             if ext_dist.my_size > 1:
                 if i not in self.local_emb_indices:
@@ -252,10 +259,14 @@ class DLRM_Net(nn.Module):
                     mode="sum",
                     sparse=True,
                 )
+                logging.info(f"{utcnow()} Creating {EE} with {n * m} elements, each of size {np.dtype(np.float32).itemsize} B")
+                total_size += np.dtype(np.float32).itemsize * n * m
             elif self.md_flag and n > self.md_threshold:
                 base = max(m)
                 _m = m[i] if n > self.md_threshold else base
                 EE = PrEmbeddingBag(n, _m, base)
+                logging.info(f"{utcnow()} Creating {EE} with {n * _m} elements, each of size {np.dtype(np.float32).itemsize} B")
+                total_size += np.dtype(np.float32).itemsize * n * _m
                 # use np initialization as below for consistency...
                 W = np.random.uniform(
                     low=-np.sqrt(1 / n), high=np.sqrt(1 / n), size=(n, _m)
@@ -263,6 +274,8 @@ class DLRM_Net(nn.Module):
                 EE.embs.weight.data = torch.tensor(W, requires_grad=True)
             else:
                 EE = nn.EmbeddingBag(n, m, mode="sum", sparse=True)
+                logging.info(f"{utcnow()} Creating {EE} with ({n * m} elements, each of size {np.dtype(np.float32).itemsize} B")
+                total_size += np.dtype(np.float32).itemsize * n * m
                 # initialize embeddings
                 # nn.init.uniform_(EE.weight, a=-np.sqrt(1 / n), b=np.sqrt(1 / n))
                 W = np.random.uniform(
@@ -279,6 +292,7 @@ class DLRM_Net(nn.Module):
             else:
                 v_W_l.append(torch.ones(n, dtype=torch.float32))
             emb_l.append(EE)
+        logging.info(f"{utcnow()} Embedding layers created. Total size: {total_size} B")
         return emb_l, v_W_l
 
     def __init__(
@@ -419,7 +433,7 @@ class DLRM_Net(nn.Module):
             if self.quantize_emb:
                 s1 = self.emb_l_q[k].element_size() * self.emb_l_q[k].nelement()
                 s2 = self.emb_l_q[k].element_size() * self.emb_l_q[k].nelement()
-                print("quantized emb sizes:", s1, s2)
+                logging.info(f"{utcnow()} quantized emb sizes: {s1}, {s2}")
 
                 if self.quantize_bits == 4:
                     QV = ops.quantized.embedding_bag_4bit_rowwise_offsets(
@@ -476,6 +490,7 @@ class DLRM_Net(nn.Module):
             # concatenate dense and sparse features
             (batch_size, d) = x.shape
             T = torch.cat([x] + ly, dim=1).view((batch_size, -1, d))
+            # logging.info(f"{utcnow()} interacting features: T has size {T.shape}") # gives (batch_size / num_gpus, x + ly, emb_size)
             # perform a dot product
             Z = torch.bmm(T, torch.transpose(T, 1, 2))
             # append dense feature with the interactions (into a row vector)
@@ -625,6 +640,7 @@ class DLRM_Net(nn.Module):
             w_list = []
             for k, emb in enumerate(self.emb_l):
                 d = torch.device("cuda:" + str(k % ndevices))
+                logging.debug(f"{utcnow()} Distributing embedding {k} to {d}: {emb}")
                 t_list.append(emb.to(d))
                 if self.weighted_pooling == "learned":
                     w_list.append(Parameter(self.v_W_l[k].to(d)))
@@ -638,6 +654,7 @@ class DLRM_Net(nn.Module):
             else:
                 self.v_W_l = w_list
             self.parallel_model_is_not_prepared = False
+            logging.debug(f"{utcnow()} Distributing Embeddings - done")
 
         ### prepare input (overwrite) ###
         # scatter dense features (data parallelism)
@@ -775,7 +792,7 @@ def inference(
 
         # Skip the batch if batch size not multiple of total ranks
         if ext_dist.my_size > 1 and X_test.size(0) % ext_dist.my_size != 0:
-            print("Warning: Skiping the batch %d with size %d" % (i, X_test.size(0)))
+            logging.warn("{} Warning: Skiping the batch {} with size {}".format(utcnow(), i, X_test.size(0)))
             continue
 
         # forward pass
@@ -984,9 +1001,8 @@ def run():
     parser.add_argument("--test-freq", type=int, default=-1)
     parser.add_argument("--test-mini-batch-size", type=int, default=-1)
     parser.add_argument("--test-num-workers", type=int, default=-1)
-    parser.add_argument("--print-time", action="store_true", default=False)
+    parser.add_argument("--print-time", action="store_true", default=True)
     parser.add_argument("--print-wall-time", action="store_true", default=False)
-    parser.add_argument("--debug-mode", action="store_true", default=False)
     parser.add_argument("--enable-profiling", action="store_true", default=False)
     parser.add_argument("--plot-compute-graph", action="store_true", default=False)
     parser.add_argument("--tensor-board-filename", type=str, default="run_kaggle_pt")
@@ -1007,12 +1023,25 @@ def run():
     parser.add_argument("--lr-num-warmup-steps", type=int, default=0)
     parser.add_argument("--lr-decay-start-step", type=int, default=0)
     parser.add_argument("--lr-num-decay-steps", type=int, default=0)
+    parser.add_argument("--debug-mode", action="store_true", default=False)
+    parser.add_argument("--log-file", type=str, default="/output/app.log")
 
     global args
     global nbatches
     global nbatches_test
     global writer
     args = parser.parse_args()
+
+    log_level = logging.DEBUG if args.debug_mode else logging.INFO
+    # Setup logging to a file
+    logging.basicConfig(
+        level=log_level,
+        handlers=[
+            logging.FileHandler(args.log_file, mode = "a", encoding='utf-8'),
+            logging.StreamHandler()
+        ],
+        format='%(message)s [%(pathname)s:%(lineno)d]'    # logging's max timestamp resolution is msecs, we will pass in microseconds in the message
+    )
 
     # To use the datase_multiprocessing feature, we have a requirement on the python version
     if args.dataset_multiprocessing:
@@ -1072,10 +1101,10 @@ def run():
         else:
             ngpus = torch.cuda.device_count()
             device = torch.device("cuda", 0)
-        print("Using {} GPU(s)...".format(ngpus))
+        logging.info(f"{utcnow()} Using {ngpus} GPU(s)...")
     else:
         device = torch.device("cpu")
-        print("Using CPU...")
+        logging.info(f"{utcnow()} Using CPU...")
 
     ### prepare training data ###
     #Convert the following to numpy array
@@ -1096,7 +1125,9 @@ def run():
         nbatches = args.num_batches if args.num_batches > 0 else len(train_ld)
         nbatches_test = len(test_ld)
 
+        logging.info(f"{utcnow()} train_data: {train_data}")
         ln_emb = train_data.counts
+        logging.info(f"{utcnow()} train_data.counts: {train_data.counts}")
         # enforce maximum limit on number of vectors per embedding
         if args.max_ind_range > 0:
             ln_emb = np.array(
@@ -1110,18 +1141,22 @@ def run():
         else:
             ln_emb = np.array(ln_emb)
         m_den = train_data.m_den
+        logging.info(f"{utcnow()} ln_emb: {ln_emb}, m_den: {m_den}")
         ln_bot[0] = m_den
     else:
         # input and target at random
         ln_emb = np.fromstring(args.arch_embedding_size, dtype=int, sep="-")
         m_den = ln_bot[0]
+        logging.info(f"{utcnow()} ln_emb: {ln_emb}, m_den: {m_den}")
+
         train_data, train_ld, test_data, test_ld = dp.make_random_data_and_loader(args, ln_emb, m_den)
         nbatches = args.num_batches if args.num_batches > 0 else len(train_ld)
         nbatches_test = len(test_ld)
 
+
     args.ln_emb = ln_emb.tolist()
     if args.mlperf_logging:
-        print("command line args: ", json.dumps(vars(args)))
+        logging.info(f"{utcnow()} command line args: {json.dumps(vars(args))}")
 
     ### parse command line arguments ###
     m_spa = args.arch_sparse_feature_size
@@ -1197,61 +1232,47 @@ def run():
             round_dim=args.md_round_dims,
         ).tolist()
 
+    # def count_parameters(model):
+
+    #     logging.debug(f"{utcnow()} Param ")
+    #     sum(p.numel() for p in model.parameters())
+
     # test prints (model arch)
     if args.debug_mode:
-        print("model arch:")
-        print(
-            "mlp top arch "
-            + str(ln_top.size - 1)
-            + " layers, with input to output dimensions:"
-        )
-        print(ln_top)
-        print("# of interactions")
-        print(num_int)
-        print(
-            "mlp bot arch "
-            + str(ln_bot.size - 1)
-            + " layers, with input to output dimensions:"
-        )
-        print(ln_bot)
-        print("# of features (sparse and dense)")
-        print(num_fea)
-        print("dense feature size")
-        print(m_den)
-        print("sparse feature size")
-        print(m_spa)
-        print(
-            "# of embeddings (= # of sparse features) "
-            + str(ln_emb.size)
-            + ", with dimensions "
-            + str(m_spa)
-            + "x:"
-        )
-        print(ln_emb)
+        logging.debug(f"{utcnow()} model arch:")
+        logging.debug(f"{utcnow()} mlp top arch {ln_top.size - 1} layers, with input to output dimensions:  {ln_top}")
+        logging.debug(f"{utcnow()} # elements in MLP top: {np.prod(ln_top)}")
+        logging.debug(f"{utcnow()} # of interactions: {num_int}")
+        logging.debug(f"{utcnow()} mlp bot arch {ln_bot.size - 1} layers, with input to output dimensions: {ln_bot}")
+        logging.debug(f"{utcnow()} # elements in MLP bottom: {np.prod(ln_bot)}")
+        logging.debug(f"{utcnow()} # of features (sparse and dense) {num_fea}")
+        logging.debug(f"{utcnow()} dense feature size {m_den}")
+        logging.debug(f"{utcnow()} sparse feature size {m_spa}")
+        logging.debug(f"{utcnow()} # of embeddings (= # of sparse features) {ln_emb.size} with dimensions {m_spa} x: {ln_emb}")
 
-        print("data (inputs and targets):")
-        for j, inputBatch in enumerate(train_ld):
-            X, lS_o, lS_i, T, W, CBPP = unpack_batch(inputBatch)
+        # print("data (inputs and targets):")
+        # for j, inputBatch in enumerate(train_ld):
+        #     X, lS_o, lS_i, T, W, CBPP = unpack_batch(inputBatch)
 
-            torch.set_printoptions(precision=4)
-            # early exit if nbatches was set by the user and has been exceeded
-            if nbatches > 0 and j >= nbatches:
-                break
-            print("mini-batch: %d" % j)
-            print(X.detach().cpu())
-            # transform offsets to lengths when printing
-            print(
-                torch.IntTensor(
-                    [
-                        np.diff(
-                            S_o.detach().cpu().tolist() + list(lS_i[i].shape)
-                        ).tolist()
-                        for i, S_o in enumerate(lS_o)
-                    ]
-                )
-            )
-            print([S_i.detach().cpu() for S_i in lS_i])
-            print(T.detach().cpu())
+        #     torch.set_printoptions(precision=4)
+        #     # early exit if nbatches was set by the user and has been exceeded
+        #     if nbatches > 0 and j >= nbatches:
+        #         break
+        #     print("mini-batch: %d" % j)
+        #     print(X.detach().cpu())
+        #     # transform offsets to lengths when printing
+        #     print(
+        #         torch.IntTensor(
+        #             [
+        #                 np.diff(
+        #                     S_o.detach().cpu().tolist() + list(lS_i[i].shape)
+        #                 ).tolist()
+        #                 for i, S_o in enumerate(lS_o)
+        #             ]
+        #         )
+        #     )
+        #     print([S_i.detach().cpu() for S_i in lS_i])
+        #     print(T.detach().cpu())
 
     global ndevices
     ndevices = min(ngpus, args.mini_batch_size, num_fea - 1) if use_gpu else -1
@@ -1284,10 +1305,10 @@ def run():
     )
 
     # test prints
-    if args.debug_mode:
-        print("initial parameters (weights and bias):")
-        for param in dlrm.parameters():
-            print(param.detach().cpu().numpy())
+    # if args.debug_mode:
+    #     print("initial parameters (weights and bias):")
+    #     for param in dlrm.parameters():
+    #         print(param.detach().cpu().numpy())
         # print(dlrm)
 
     if use_gpu:
@@ -1366,7 +1387,7 @@ def run():
     total_samp = 0
 
     if args.mlperf_logging:
-        mlperf_logger.mlperf_submission_log("dlrm")
+        mlperf_logger.mlperf_submission_log("dlrm") # Sets up the output to dlrm.log
         mlperf_logger.log_event(
             key=mlperf_logger.constants.SEED, value=args.numpy_rand_seed
         )
@@ -1376,7 +1397,7 @@ def run():
 
     # Load model is specified
     if not (args.load_model == ""):
-        print("Loading saved model {}".format(args.load_model))
+        logging.info("{} Loading saved model {}".format(utcnow(), args.load_model))
         if use_gpu:
             if dlrm.ndevices > 1:
                 # NOTE: when targeting inference on multiple GPUs,
@@ -1414,25 +1435,25 @@ def run():
         else:
             args.print_freq = ld_nbatches
             args.test_freq = 0
-
-        print(
-            "Saved at: epoch = {:d}/{:d}, batch = {:d}/{:d}, ntbatch = {:d}".format(
-                ld_k, ld_nepochs, ld_j, ld_nbatches, ld_nbatches_test
+        
+        logging.info(
+            "{} Saved at: epoch = {:d}/{:d}, batch = {:d}/{:d}, ntbatch = {:d}".format(
+                utcnow(), ld_k, ld_nepochs, ld_j, ld_nbatches, ld_nbatches_test
             )
         )
-        print(
-            "Training state: loss = {:.6f}".format(
-                ld_train_loss,
+        logging.info(
+            "{} Training state: loss = {:.6f}".format(
+                utcnow(), ld_train_loss,
             )
         )
         if args.mlperf_logging:
-            print(
-                "Testing state: accuracy = {:3.3f} %, auc = {:.3f}".format(
-                    ld_acc_test * 100, ld_gAUC_test
+            logging.info(
+                "{} Testing state: accuracy = {:3.3f} %, auc = {:.3f}".format(
+                    utcnow(), ld_acc_test * 100, ld_gAUC_test
                 )
             )
         else:
-            print("Testing state: accuracy = {:3.3f} %".format(ld_acc_test * 100))
+            print("{} Testing state: accuracy = {:3.3f} %".format(utcnow(), ld_acc_test * 100))
 
     if args.inference_only:
         # Currently only dynamic quantization with INT8 and FP16 weights are
@@ -1461,7 +1482,7 @@ def run():
             dlrm.quantize_embedding(args.quantize_emb_with_bit)
             # print(dlrm)
 
-    print("time/loss/accuracy (if enabled):")
+    logging.info("{} time/loss/accuracy (if enabled):".format(utcnow()))
 
     if args.mlperf_logging:
         # LR is logged twice for now because of a compliance checker bug
@@ -1486,7 +1507,9 @@ def run():
         mlperf_logger.log_event(key="sgd_opt_learning_rate_decay_poly_power", value=2)
 
     tb_file = "./" + args.tensor_board_filename
-    writer = SummaryWriter(tb_file)
+    writer = SummaryWriter(tb_file) 
+
+    logging.info(f"{utcnow()} Starting Training")
 
     ext_dist.barrier()
     with torch.autograd.profiler.profile(
@@ -1518,6 +1541,7 @@ def run():
                     previous_iteration_time = None
 
                 for j, inputBatch in enumerate(train_ld):
+                    # logging.debug("{} Processing batch {}".format(utcnow(), j))
                     if j == 0 and args.save_onnx:
                         X_onnx, lS_o_onnx, lS_i_onnx, _, _, _ = unpack_batch(inputBatch)
 
@@ -1542,15 +1566,15 @@ def run():
 
                     # Skip the batch if batch size not multiple of total ranks
                     if ext_dist.my_size > 1 and X.size(0) % ext_dist.my_size != 0:
-                        print(
-                            "Warning: Skiping the batch %d with size %d"
-                            % (j, X.size(0))
+                        logging.warn(
+                            "{} Warning: Skiping the batch {} with size {}".format(utcnow(), j, X.size(0))
                         )
                         continue
 
                     mbs = T.shape[0]  # = args.mini_batch_size except maybe for last
 
                     # forward pass
+                    # The model will distribute the embeddings here during its first forward pass
                     Z = dlrm_wrap(
                         X,
                         lS_o,
@@ -1615,6 +1639,7 @@ def run():
                     # print time, loss and accuracy
                     if should_print or should_test:
                         gT = 1000.0 * total_time / total_iter if args.print_time else -1
+                        time_per_sample = gT / args.mini_batch_size
                         total_time = 0
 
                         train_loss = total_loss / total_samp
@@ -1628,15 +1653,10 @@ def run():
                         if args.print_wall_time:
                             wall_time = " ({})".format(time.strftime("%H:%M"))
 
-                        print(
-                            "Finished {} it {}/{} of epoch {}, {:.2f} ms/it,".format(
-                                str_run_type, j + 1, nbatches, k, gT
-                            )
-                            + " loss {:.6f}".format(train_loss)
-                            + wall_time,
-                            flush=True,
-                        )
-
+                        logging.info(f"{utcnow()} Finished {str_run_type} on batch {j+1}/{nbatches} of epoch {k}, {gT:.2f} ms/batch, {time_per_sample:.2f} ms/sample, loss {train_loss:.6f}")
+                        # Print out GPU memory use (gives more precise info than nvidia-smi)
+                        for i in range(torch.cuda.device_count()):
+                            logging.debug(f"{utcnow()} {torch.cuda.memory_summary(torch.device(f'cuda:{i}'), abbreviated=True)}")
                         log_iter = nbatches * k + j + 1
                         writer.add_scalar("Train/Loss", train_loss, log_iter)
 
@@ -1659,7 +1679,7 @@ def run():
                         if args.mlperf_logging:
                             previous_iteration_time = None
                         print(
-                            "Testing at - {}/{} of epoch {},".format(j + 1, nbatches, k)
+                            "{} Testing at - {}/{} of epoch {},".format(utcnow(), j + 1, nbatches, k)
                         )
                         model_metrics_dict, is_best = inference(
                             args,
@@ -1684,7 +1704,7 @@ def run():
                             model_metrics_dict[
                                 "opt_state_dict"
                             ] = optimizer.state_dict()
-                            print("Saving model to {}".format(args.save_model))
+                            print("{} Saving model to {}".format(utcnow(), args.save_model))
                             torch.save(model_metrics_dict, args.save_model)
 
                         if args.mlperf_logging:
@@ -1790,10 +1810,10 @@ def run():
         # dot.render('dlrm_s_pytorch_graph') # write .pdf file
 
     # test prints
-    if not args.inference_only and args.debug_mode:
-        print("updated parameters (weights and bias):")
-        for param in dlrm.parameters():
-            print(param.detach().cpu().numpy())
+    # if not args.inference_only and args.debug_mode:
+        # print("updated parameters (weights and bias):")
+        # for param in dlrm.parameters():
+        #     print(param.detach().cpu().numpy())
 
     # export the model in onnx
     if args.save_onnx:

@@ -27,13 +27,19 @@ python dlrm_s_pytorch.py \
 --loss-function=bce \
 --round-targets=True \
 --learning-rate=0.1 \
---mini-batch-size=128 \
+--mini-batch-size=2048 \
 --print-freq=1024 \
+--test-freq=102400 \
 --test-mini-batch-size=16384 \
 --mlperf-logging \
 --mlperf-bin-loader \
 --mlperf-bin-shuffle \
---test-num-workers=16 $dlrm_extra_option 2>&1 | tee /code/input/run_kaggle_mlperf_tV2.log
+--debug-mode \
+--log-file=/output/app.log \
+--memory-map \
+--test-num-workers=16 $dlrm_extra_option
+
+cp /code/dlrm.log /output
 
 # python dlrm_s_pytorch.py \
 # --use-gpu \
@@ -60,8 +66,6 @@ python dlrm_s_pytorch.py \
 end=$(date +%s)
 end_fmt=$(date +%Y-%m-%d\ %r)
 echo "---End running dlrm at $end_fmt---"
-
-cp /code/dlrm.log /mlperf_saving_spot
 
 echo "done"
 # report result

@@ -47,6 +47,9 @@ from multiprocessing import Process, Manager
 
 import numpy as np
 
+import logging
+from log_utils import utcnow
+
 
 def convertUStringToDistinctIntsDict(mat, convertDicts, counts):
     # Converts matrix of unicode strings into distinct integers.
@@ -63,8 +66,8 @@ def convertUStringToDistinctIntsDict(mat, convertDicts, counts):
 
     # check if convertDicts and counts match correct length of mat
     if len(convertDicts) != mat.shape[1] or len(counts) != mat.shape[1]:
-        print("Length of convertDicts or counts does not match input shape")
-        print("Generating convertDicts and counts...")
+        logging.info(f"{utcnow()} Length of convertDicts or counts does not match input shape")
+        logging.info(f"{utcnow()} Generating convertDicts and counts...")
 
         convertDicts = [{} for _ in range(mat.shape[1])]
         counts = [0 for _ in range(mat.shape[1])]
@@ -88,8 +91,8 @@ def convertUStringToDistinctIntsUnique(mat, mat_uni, counts):
 
     # check if mat_unique and counts match correct length of mat
     if len(mat_uni) != mat.shape[1] or len(counts) != mat.shape[1]:
-        print("Length of mat_unique or counts does not match input shape")
-        print("Generating mat_unique and counts...")
+        logging.info(f"{utcnow()} Length of mat_unique or counts does not match input shape")
+        logging.info(f"{utcnow()} Generating mat_unique and counts...")
 
         mat_uni = [np.array([]) for _ in range(mat.shape[1])]
         counts = [0 for _ in range(mat.shape[1])]
@@ -124,9 +127,9 @@ def processCriteoAdData(d_path, d_file, npzfile, i, convertDicts, pre_comp_count
     filename_i = npzfile + "_{0}_processed.npz".format(i)
 
     if path.exists(filename_i):
-        print("Using existing " + filename_i, end="\n")
+        logging.info(f"{utcnow()} Using existing file {filename_i}")
     else:
-        print("Not existing " + filename_i)
+        logging.info(f"{utcnow()} No existing file {filename_i}")
         with np.load(npzfile + "_{0}.npz".format(i)) as data:
             # categorical features
             '''
@@ -159,12 +162,12 @@ def processCriteoAdData(d_path, d_file, npzfile, i, convertDicts, pre_comp_count
             X_int=X_int,
             y=y,
         )
-        print("Processed " + filename_i, end="\n")
+        logging.info(f"{utcnow()} Processed {filename_i}")
     # sanity check (applicable only if counts have been pre-computed & are re-computed)
     # for j in range(26):
     #    if pre_comp_counts[j] != counts[j]:
     #        sys.exit("ERROR: Sanity check on counts has failed")
-    # print("\nSanity check on counts passed")
+    # logging.info("\nSanity check on counts passed")
 
     return
 
@@ -218,7 +221,7 @@ def concatCriteoAdData(
             if randomize == "day":  # or randomize == "total":
                 for i in range(len(indices) - 1):
                     indices[i] = np.random.permutation(indices[i])
-                print("Randomized indices per day ...")
+                logging.info("Randomized indices per day ...")
 
             train_indices = np.concatenate(indices[:-1])
             test_indices = indices[-1]
@@ -226,7 +229,7 @@ def concatCriteoAdData(
             # randomize train data (across days)
             if randomize == "total":
                 train_indices = np.random.permutation(train_indices)
-                print("Randomized indices across days ...")
+                logging.info("Randomized indices across days ...")
 
             indices = np.concatenate((train_indices, test_indices))
         # no reordering
@@ -239,7 +242,7 @@ def concatCriteoAdData(
         for j in range(tot_fea):
             filename_j = trafile + "_{0}_reordered.npy".format(j)
             if path.exists(filename_j):
-                print("Using existing " + filename_j)
+                logging.info("Using existing " + filename_j)
             else:
                 recreate_flag = True
         # load, reorder and concatenate data (memmap all reordered files per feature)
@@ -249,7 +252,7 @@ def concatCriteoAdData(
             for j in range(tot_fea):
                 filename_j = trafile + "_{0}_reordered".format(j)
                 np.save(filename_j, z)
-                print("Creating " + filename_j)
+                logging.info("Creating " + filename_j)
 
             for i in range(days):
                 filename_i = d_path + npzfile + "_{0}_processed.npz".format(i)
@@ -264,8 +267,8 @@ def concatCriteoAdData(
                 # setup start and end ranges
                 start = offset_per_file[i]
                 end = offset_per_file[i + 1]
-                # print(filename_i)
-                # print("start=" + str(start) + " end=" + str(end)
+                # logging.info(filename_i)
+                # logging.info("start=" + str(start) + " end=" + str(end)
                 #     + " diff=" + str(end - start) + "=" + str(total_per_file[i]))
 
                 for j in range(tot_fea):
@@ -279,14 +282,14 @@ def concatCriteoAdData(
                         fj[indices[start:end]] = X_cat_t[j - tad_fea, :]
                     del fj
         else:
-            print("Reordered fea files already exist, skipping ...")
+            logging.info("Reordered fea files already exist, skipping ...")
 
         # check if data already exists
         recreate_flag = False
         for i in range(days):
             filename_i = d_path + npzfile + "_{0}_reordered.npz".format(i)
             if path.exists(filename_i):
-                print("Using existing " + filename_i)
+                logging.info("Using existing " + filename_i)
             else:
                 recreate_flag = True
         # split reordered data by files (memmap all reordered files per feature)
@@ -300,8 +303,8 @@ def concatCriteoAdData(
                 # setup start and end ranges
                 start = offset_per_file[i]
                 end = offset_per_file[i + 1]
-                print("Creating " + filename_i)
-                # print("start=" + str(start) + " end=" + str(end)
+                logging.info("Creating " + filename_i)
+                # logging.info("start=" + str(start) + " end=" + str(end)
                 #     + " diff=" + str(end - start) + "=" + str(total_per_file[i]))
 
                 for j in range(tot_fea):
@@ -322,7 +325,7 @@ def concatCriteoAdData(
                     y=y,
                 )
         else:
-            print("Reordered day files already exist, skipping ...")
+            logging.info("Reordered day files already exist, skipping ...")
         '''
         '''
         # Approach 2: group days
@@ -331,7 +334,7 @@ def concatCriteoAdData(
         for j in range(tot_fea):
             filename_j = trafile + "_{0}_reordered.npy".format(j)
             if path.exists(filename_j):
-                print("Using existing " + filename_j)
+                logging.info("Using existing " + filename_j)
             else:
                 recreate_flag = True
         # load, reorder and concatenate data (memmap all reordered files per feature)
@@ -341,7 +344,7 @@ def concatCriteoAdData(
             for j in range(tot_fea):
                 filename_j = trafile + "_{0}_reordered".format(j)
                 np.save(filename_j, z)
-                print("Creating " + filename_j)
+                logging.info("Creating " + filename_j)
 
             group_day = 3  # e.g. 8, 4 or 3
             group_num = days // group_day
@@ -360,7 +363,7 @@ def concatCriteoAdData(
                     # setup start and end ranges
                     start[ig] = offset_per_file[i]
                     end[ig] = offset_per_file[i + 1]
-                    # print(filename_i)
+                    # logging.info(filename_i)
                     # load a group of files
                     with np.load(filename_i) as data:
                         X_cat_t[ig] = np.transpose(data["X_cat"])
@@ -369,7 +372,7 @@ def concatCriteoAdData(
                     # sanity check
                     if total_per_file[i] != len(y[ig]):
                         sys.exit("ERROR: sanity check on number of samples failed")
-                # print("start=" + str(start) + " end=" + str(end)
+                # logging.info("start=" + str(start) + " end=" + str(end)
                 #  + " diff=" + str(end[ig]-start[ig]) + "=" + str(total_per_file[i]))
 
                 for j in range(tot_fea):
@@ -384,14 +387,14 @@ def concatCriteoAdData(
                             fj[indices[start[ig]:end[ig]]] = X_cat_t[ig][j - tad_fea, :]
                     del fj
         else:
-            print("Reordered fea files already exist, skipping ...")
+            logging.info("Reordered fea files already exist, skipping ...")
 
         # check if data already exists
         recreate_flag = False
         for i in range(days):
             filename_i = d_path + npzfile + "_{0}_reordered.npz".format(i)
             if path.exists(filename_i):
-                print("Using existing " + filename_i)
+                logging.info("Using existing " + filename_i)
             else:
                 recreate_flag = True
         # split reordered data by files (memmap all reordered files per feature)
@@ -430,7 +433,7 @@ def concatCriteoAdData(
                 for ig in range(group_size):
                     i = file_group[ii] + ig
                     filename_i = d_path + npzfile + "_{0}_reordered.npz".format(i)
-                    print("Creating " + filename_i)
+                    logging.info("Creating " + filename_i)
                     np.savez_compressed(
                         filename_i,
                         X_cat=np.transpose(X_cat_t[ig]),  # transpose of the data
@@ -438,7 +441,7 @@ def concatCriteoAdData(
                         y=y[ig],
                     )
         else:
-            print("Reordered day files already exist, skipping ...")
+            logging.info("Reordered day files already exist, skipping ...")
         '''
         '''
         # Approach 3: group features
@@ -453,7 +456,7 @@ def concatCriteoAdData(
                 jn, group_fea
             )
             if path.exists(filename_j):
-                print("Using existing " + filename_j)
+                logging.info("Using existing " + filename_j)
             else:
                 recreate_flag = True
         # load, reorder and concatenate data (memmap all reordered files per feature)
@@ -465,7 +468,7 @@ def concatCriteoAdData(
                     jn, group_fea
                 )
                 np.save(filename_j, z)
-                print("Creating " + filename_j)
+                logging.info("Creating " + filename_j)
 
             for i in range(days):
                 filename_i = d_path + npzfile + "_{0}_processed.npz".format(i)
@@ -480,8 +483,8 @@ def concatCriteoAdData(
                 # setup start and end ranges
                 start = offset_per_file[i]
                 end = offset_per_file[i + 1]
-                # print(filename_i)
-                # print("start=" + str(start) + " end=" + str(end)
+                # logging.info(filename_i)
+                # logging.info("start=" + str(start) + " end=" + str(end)
                 #      + " diff=" + str(end - start) + "=" + str(total_per_file[i]))
 
                 for jn in range(group_num):
@@ -491,7 +494,7 @@ def concatCriteoAdData(
                     fj = np.load(filename_j, mmap_mode='r+')
                     for jg in range(group_fea):
                         j = jn * group_fea + jg
-                        # print("j=" + str(j) + " jn=" + str(jn) + " jg=" + str(jg))
+                        # logging.info("j=" + str(j) + " jn=" + str(jn) + " jg=" + str(jg))
                         if j < tar_fea:
                             fj[jg, indices[start:end]] = y
                         elif tar_fea <= j and j < tad_fea:
@@ -500,14 +503,14 @@ def concatCriteoAdData(
                             fj[jg, indices[start:end]] = X_cat_t[j - tad_fea, :]
                     del fj
         else:
-            print("Reordered fea files already exist, skipping ...")
+            logging.info("Reordered fea files already exist, skipping ...")
 
         # check if data already exists
         recreate_flag = False
         for i in range(days):
             filename_i = d_path + npzfile + "_{0}_reordered.npz".format(i)
             if path.exists(filename_i):
-                print("Using existing" + filename_i)
+                logging.info("Using existing" + filename_i)
             else:
                 recreate_flag = True
         # split reordered data by files (memmap all reordered files per feature)
@@ -521,8 +524,8 @@ def concatCriteoAdData(
                 # setup start and end ranges
                 start = offset_per_file[i]
                 end = offset_per_file[i + 1]
-                print("Creating " + filename_i)
-                # print("start=" + str(start) + " end=" + str(end)
+                logging.info("Creating " + filename_i)
+                # logging.info("start=" + str(start) + " end=" + str(end)
                 #      + " diff=" + str(end - start) + "=" + str(total_per_file[i]))
 
                 for jn in range(group_num):
@@ -532,7 +535,7 @@ def concatCriteoAdData(
                     fj = np.load(filename_j, mmap_mode='r')
                     for jg in range(group_fea):
                         j = jn * group_fea + jg
-                        # print("j=" + str(j) + " jn=" + str(jn) + " jg=" + str(jg))
+                        # logging.info("j=" + str(j) + " jn=" + str(jn) + " jg=" + str(jg))
                         if j < tar_fea:
                             y = fj[jg, start:end]
                         elif tar_fea <= j and j < tad_fea:
@@ -549,7 +552,7 @@ def concatCriteoAdData(
                 )
 
         else:
-            print("Reordered day files already exist, skipping ...")
+            logging.info("Reordered day files already exist, skipping ...")
         '''
 
         # Approach 4: Fisher-Yates-Rao (FYR) shuffle algorithm
@@ -565,8 +568,8 @@ def concatCriteoAdData(
                 and path.exists(filename_j_d)
                 and path.exists(filename_j_s)
             ):
-                print(
-                    "Using existing\n"
+                logging.info(
+                    f"{utcnow()} Using existing\n"
                     + filename_j_y + "\n"
                     + filename_j_d + "\n"
                     + filename_j_s
@@ -595,8 +598,8 @@ def concatCriteoAdData(
                 # sanity check
                 if total_per_file[i] != size:
                     sys.exit("ERROR: sanity check on number of samples failed")
-                # debug prints
-                print("Reordering (1st pass) " + filename_i)
+                # debug logging.infos
+                logging.info(f"{utcnow()} Reordering (1st pass) " + filename_i)
 
                 # create buckets using sampling of random ints
                 # from (discrete) uniform distribution
@@ -630,10 +633,10 @@ def concatCriteoAdData(
                 if np.sum(counter) != size:
                     sys.exit("ERROR: sanity check on number of samples failed")
                 # debug prints
-                # print(counter)
-                # print(str(np.sum(counter)) + " = " + str(size))
-                # print([len(x) for x in buckets])
-                # print(total_counter)
+                # logging.info(counter)
+                # logging.info(str(np.sum(counter)) + " = " + str(size))
+                # logging.info([len(x) for x in buckets])
+                # logging.info(total_counter)
 
                 # partially feel the buckets
                 for j in range(days):
@@ -644,26 +647,19 @@ def concatCriteoAdData(
                     end = total_counter[j] + counter[j]
                     # target buckets
                     fj_y = np.load(filename_j_y, mmap_mode='r+')
-                    # print("start=" + str(start) + " end=" + str(end)
-                    #       + " end - start=" + str(end - start) + " "
-                    #       + str(fj_y[start:end].shape) + " "
-                    #       + str(len(buckets[j])))
+                    logging.debug(f"{utcnow()} start={start} end={end} end - start={end-start} {fj_y[start:end].shape} {len(buckets[j])}")
                     fj_y[start:end] = y[buckets[j]]
                     del fj_y
                     # dense buckets
                     fj_d = np.load(filename_j_d, mmap_mode='r+')
-                    # print("start=" + str(start) + " end=" + str(end)
-                    #       + " end - start=" + str(end - start) + " "
-                    #       + str(fj_d[start:end, :].shape) + " "
-                    #       + str(len(buckets[j])))
+                    logging.debug(f"{utcnow()} start={start} end={end} end - start={end-start} {fj_d[start:end, :].shape} {len(buckets[j])}")
+
                     fj_d[start:end, :] = X_int[buckets[j], :]
                     del fj_d
                     # sparse buckets
                     fj_s = np.load(filename_j_s, mmap_mode='r+')
-                    # print("start=" + str(start) + " end=" + str(end)
-                    #       + " end - start=" + str(end - start) + " "
-                    #       + str(fj_s[start:end, :].shape) + " "
-                    #       + str(len(buckets[j])))
+                    logging.debug(f"{utcnow()} start={start} end={end} end - start={end-start} {fj_s[start:end, :].shape} {len(buckets[j])}")
+
                     fj_s[start:end, :] = X_cat[buckets[j], :]
                     del fj_s
                     # update counters for next step
@@ -674,7 +670,7 @@ def concatCriteoAdData(
         for j in range(days):
             filename_j = npzfile + "_{0}_reordered.npz".format(j)
             if path.exists(filename_j):
-                print("Using existing " + filename_j)
+                logging.info(f"{utcnow()} Using existing " + filename_j)
             else:
                 recreate_flag = True
         # reorder within buckets
@@ -693,7 +689,7 @@ def concatCriteoAdData(
                         indices = np.random.permutation(range(total_per_file[j]))
 
                 filename_r = npzfile + "_{0}_reordered.npz".format(j)
-                print("Reordering (2nd pass) " + filename_r)
+                logging.info(f"{utcnow()} Reordering (2nd pass) " + filename_r)
                 np.savez_compressed(
                     filename_r,
                     X_cat=fj_s[indices, :],
@@ -705,24 +701,24 @@ def concatCriteoAdData(
         # sanity check (under no reordering norms should be zero)
         for i in range(days):
             filename_i_o = npzfile + "_{0}_processed.npz".format(i)
-            print(filename_i_o)
+            logging.info(filename_i_o)
             with np.load(filename_i_o) as data_original:
                 X_cat_o = data_original["X_cat"]
                 X_int_o = data_original["X_int"]
                 y_o = data_original["y"]
             filename_i_r = npzfile + "_{0}_reordered.npz".format(i)
-            print(filename_i_r)
+            logging.info(filename_i_r)
             with np.load(filename_i_r) as data_reordered:
                 X_cat_r = data_reordered["X_cat"]
                 X_int_r = data_reordered["X_int"]
                 y_r = data_reordered["y"]
-            print(np.linalg.norm(y_o - y_r))
-            print(np.linalg.norm(X_int_o - X_int_r))
-            print(np.linalg.norm(X_cat_o - X_cat_r))
+            logging.info(np.linalg.norm(y_o - y_r))
+            logging.info(np.linalg.norm(X_int_o - X_int_r))
+            logging.info(np.linalg.norm(X_cat_o - X_cat_r))
         '''
 
     else:
-        print("Concatenating multiple days into %s.npz file" % str(d_path + o_filename))
+        logging.info(f"{utcnow()} Concatenating multiple days into %s.npz file" % str(d_path + o_filename))
 
         # load and concatenate data
         for i in range(days):
@@ -736,11 +732,11 @@ def concatCriteoAdData(
                     X_cat = np.concatenate((X_cat, data["X_cat"]))
                     X_int = np.concatenate((X_int, data["X_int"]))
                     y = np.concatenate((y, data["y"]))
-            print("Loaded day:", i, "y = 1:", len(y[y == 1]), "y = 0:", len(y[y == 0]))
+            logging.info(f"{utcnow()} Loaded day:", i, "y = 1:", len(y[y == 1]), "y = 0:", len(y[y == 0]))
 
         with np.load(d_path + d_file + "_fea_count.npz") as data:
             counts = data["counts"]
-        print("Loaded counts!")
+        logging.info(f"{utcnow()} Loaded counts!")
 
         np.savez_compressed(
             d_path + o_filename + ".npz",
@@ -801,18 +797,18 @@ def transformCriteoAdData(X_cat, X_int, y, days, data_split, randomize, total_pe
         if randomize == "day":  # or randomize == "total":
             for i in range(len(indices) - 1):
                 indices[i] = np.random.permutation(indices[i])
-            print("Randomized indices per day ...")
+            logging.info(f"{utcnow()} Randomized indices per day ...")
 
         train_indices = np.concatenate(indices[:-1])
         test_indices = indices[-1]
         test_indices, val_indices = np.array_split(test_indices, 2)
 
-        print("Defined training and testing indices...")
+        logging.info(f"{utcnow()} Defined training and testing indices...")
 
         # randomize train data (across days)
         if randomize == "total":
             train_indices = np.random.permutation(train_indices)
-            print("Randomized indices across days ...")
+            logging.info(f"{utcnow()} Randomized indices across days ...")
 
         # indices = np.concatenate((train_indices, test_indices))
 
@@ -829,7 +825,7 @@ def transformCriteoAdData(X_cat, X_int, y, days, data_split, randomize, total_pe
         X_int_test = X_int[test_indices]
         y_test = y[test_indices]
 
-        print("Split data according to indices...")
+        logging.info(f"{utcnow()} Split data according to indices...")
 
         X_cat_train = X_cat_train.astype(np.long)
         X_int_train = np.log(X_int_train.astype(np.float32) + 1)
@@ -843,7 +839,7 @@ def transformCriteoAdData(X_cat, X_int, y, days, data_split, randomize, total_pe
         X_int_test = np.log(X_int_test.astype(np.float32) + 1)
         y_test = y_test.astype(np.float32)
 
-        print("Converted to tensors...done!")
+        logging.info(f"{utcnow()} Converted to tensors...done!")
 
         return (
             X_cat_train,
@@ -862,13 +858,13 @@ def transformCriteoAdData(X_cat, X_int, y, days, data_split, randomize, total_pe
         # randomize data
         if randomize == "total":
             indices = np.random.permutation(indices)
-            print("Randomized indices...")
+            logging.info(f"{utcnow()} Randomized indices...")
 
         X_cat = X_cat[indices].astype(np.long)
         X_int = np.log(X_int[indices].astype(np.float32) + 1)
         y = y[indices].astype(np.float32)
 
-        print("Converted to tensors...done!")
+        logging.info(f"{utcnow()} Converted to tensors...done!")
 
         return (X_cat, X_int, y, [], [], [], [], [], [])
 
@@ -909,7 +905,7 @@ def getCriteoAdData(
         with np.load(total_file) as data:
             total_per_file = list(data["total_per_file"])
         total_count = np.sum(total_per_file)
-        print("Skipping counts per file (already exist)")
+        logging.info(f"{utcnow()} Skipping counts per file (already exist)")
     else:
         total_count = 0
         total_per_file = []
@@ -919,7 +915,7 @@ def getCriteoAdData(
             # 26 categorical features (an extra space indicates that feature is
             # missing and will be interpreted as 0).
             if path.exists(datafile):
-                print("Reading data from path=%s" % (datafile))
+                logging.info(f"{utcnow()} Reading data from path={datafile}")
                 # Count the number of lines in the data file to get the total number of data points
                 with open(str(datafile)) as f:
                     for _ in f:
@@ -956,7 +952,7 @@ def getCriteoAdData(
             for i in range(days):
                 datafile_i = datafile + "_" + str(i)  # + ".gz"
                 if path.exists(str(datafile_i)):
-                    print("Reading data from path=%s" % (str(datafile_i)))
+                    logging.info("Reading data from path=%s" % (str(datafile_i)))
                     # file day_<number>
                     total_per_file_count = 0
                     with open(str(datafile_i)) as f:
@@ -1022,35 +1018,31 @@ def getCriteoAdData(
                 if dataset_multiprocessing:
                     for j in range(26):
                         convertDicts_day[j][X_cat[i][j]] = 1
-                    # debug prints
+                    # debug logging.infos
                     if float(i)/num_data_in_split*100 > percent+1:
                         percent = int(float(i)/num_data_in_split*100)
-                        print(
-                            "Load %d/%d (%d%%) Split: %d  Label True: %d  Stored: %d"
-                            % (
+                        logging.info(
+                            "{} Load {}/{} ({}%%) Split: {} Label True: {}  Stored: {}".format(
+                                utcnow(),
                                 i,
                                 num_data_in_split,
                                 percent,
                                 split,
                                 target,
                                 y[i],
-                            ),
-                            end="\n",
+                            )
                         )
                 else:
                     for j in range(26):
                         convertDicts[j][X_cat[i][j]] = 1
-                    # debug prints
-                    print(
-                        "Load %d/%d  Split: %d  Label True: %d  Stored: %d"
-                        % (
+                    # debug logging.infos
+                    logging.info("{} Load {}/{}  Split: {} Label True: {}  Stored: {}".format(utcnow(),
                             i,
                             num_data_in_split,
                             split,
                             target,
                             y[i],
-                        ),
-                        end="\r",
+                        )
                     )
                 i += 1
 
@@ -1063,7 +1055,7 @@ def getCriteoAdData(
             # store parsed
             filename_s = npzfile + "_{0}.npz".format(split)
             if path.exists(filename_s):
-                print("\nSkip existing " + filename_s)
+                logging.info(f"{utcnow()} Skip existing " + filename_s)
             else:
                 np.savez_compressed(
                     filename_s,
@@ -1072,7 +1064,7 @@ def getCriteoAdData(
                     X_cat_t=np.transpose(X_cat[0:i, :]),  # transpose of the data
                     y=y[0:i],
                 )
-                print("\nSaved " + npzfile + "_{0}.npz!".format(split))
+                logging.info("{} Saved " + npzfile + "_{0}.npz!".format({utcnow()}, split))
 
         if dataset_multiprocessing:
             resultDay[split] = i
@@ -1083,6 +1075,7 @@ def getCriteoAdData(
 
     # create all splits (reuse existing files if possible)
     recreate_flag = False
+    # A dictionary for each day
     convertDicts = [{} for _ in range(26)]
     # WARNING: to get reproducable sub-sampling results you must reset the seed below
     # np.random.seed(123)
@@ -1092,9 +1085,9 @@ def getCriteoAdData(
         npzfile_i = npzfile + "_{0}.npz".format(i)
         npzfile_p = npzfile + "_{0}_processed.npz".format(i)
         if path.exists(npzfile_i):
-            print("Skip existing " + npzfile_i)
+            logging.info(f"{utcnow()} Skip existing {npzfile_i}")
         elif path.exists(npzfile_p):
-            print("Skip existing " + npzfile_p)
+            logging.info(f"{utcnow()} Skip existing {npzfile_p}")
         else:
             recreate_flag = True
 
@@ -1119,7 +1112,7 @@ def getCriteoAdData(
                 process.join()
             for day in range(days):
                 total_per_file[day] = resultDay[day]
-                print("Constructing convertDicts Split: {}".format(day))
+                logging.info("{} Constructing convertDicts Split: {}".format(utcnow(), day))
                 convertDicts_tmp = convertDictsDay[day]
                 for i in range(26):
                     for j in convertDicts_tmp[i]:
@@ -1138,13 +1131,13 @@ def getCriteoAdData(
     total_count = np.sum(total_per_file)
     if not path.exists(total_file):
         np.savez_compressed(total_file, total_per_file=total_per_file)
-    print("Total number of samples:", total_count)
-    print("Divided into days/splits:\n", total_per_file)
+    logging.info(f"{utcnow()} Total number of samples: {total_count}")
+    logging.info(f"{utcnow()} Divided into days/splits: {total_per_file}")
 
     # dictionary files
     counts = np.zeros(26, dtype=np.int32)
     if recreate_flag:
-        # create dictionaries
+        # create a dictionary for each categorical feature
         for j in range(26):
             for i, x in enumerate(convertDicts[j]):
                 convertDicts[j][x] = i
@@ -1249,10 +1242,10 @@ def loadDataset(
     # pre-process data if needed
     # WARNNING: when memory mapping is used we get a collection of files
     if data_ready:
-        print("Reading pre-processed data=%s" % (str(pro_data)))
+        logging.info(f"{utcnow()} Reading pre-processed data={pro_data}")
         file = str(pro_data)
     else:
-        print("Reading raw data=%s" % (str(raw_path)))
+        logging.info(f"{utcnow()} Reading raw data={raw_path}")
         file = getCriteoAdData(
             raw_path,
             o_filename,

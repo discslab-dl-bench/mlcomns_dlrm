@@ -1,7 +1,5 @@
 #!/bin/bash
 
-##This is the script that starts the dlrm container and runs run_in_container.sh
-
 mkdir -p output
 
 DATA_DIR="/raid/data/dlrm/kaggle"
@@ -16,4 +14,4 @@ image_tag=${3:-latest}
 sudo docker run -it --rm --gpus $num_gpus --name $container_name \
 -v $DATA_DIR:/data_kaggle \
 -v $OUTPUT_DIR:/output \
-dlrm:$image_tag /bin/bash run_in_container.sh
+dlrm:$image_tag

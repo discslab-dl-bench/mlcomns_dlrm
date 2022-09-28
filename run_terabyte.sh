@@ -35,14 +35,14 @@ python dlrm_s_pytorch.py \
 --mlperf-logging \
 --mlperf-bin-loader \
 --mlperf-bin-shuffle \
---test-num-workers=16 $dlrm_extra_option 2>&1 | tee run_terabyte_pt.log
+--test-num-workers=16 $dlrm_extra_option 2>&1
 
 # end timing
 end=$(date +%s)
 end_fmt=$(date +%Y-%m-%d\ %r)
 echo "---End running dlrm at $end_fmt---"
 
-cp /code/dlrm.log /mlperf_saving_spot/dlrm_tera.log
+cp /code/dlrm.log /output/dlrm_tera.log
 
 echo "done"
 # report result
