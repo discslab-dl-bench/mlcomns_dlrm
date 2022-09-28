@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Tensorboard events
+run_kaggle_pt/
+
 # C extensions
 *.so
 
