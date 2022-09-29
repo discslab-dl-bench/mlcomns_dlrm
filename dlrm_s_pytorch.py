@@ -1677,7 +1677,7 @@ def run():
                         # don't measure training iter time in a test iteration
                         if args.mlperf_logging:
                             previous_iteration_time = None
-                        print(
+                        logging.info(
                             "{} Testing at - {}/{} of epoch {},".format(utcnow(), j + 1, nbatches, k)
                         )
                         model_metrics_dict, is_best = inference(
@@ -1703,8 +1703,9 @@ def run():
                             model_metrics_dict[
                                 "opt_state_dict"
                             ] = optimizer.state_dict()
-                            print("{} Saving model to {}".format(utcnow(), args.save_model))
+                            logging.info("{} Saving model to {}".format(utcnow(), args.save_model))
                             torch.save(model_metrics_dict, args.save_model)
+                            logging.info("{} Model saved".format(utcnow()))
 
                         if args.mlperf_logging:
                             mlperf_logger.barrier()
@@ -1718,6 +1719,7 @@ def run():
                         # Uncomment the line below to print out the total time with overhead
                         # print("Total test time for this group: {}" \
                         # .format(time_wrap(use_gpu) - accum_test_time_begin))
+                        logging.info(f"{utcnow()} Testing done")
 
                         if (
                             args.mlperf_logging
@@ -1730,7 +1732,7 @@ def run():
                                 + " reached, stop training"
                             )
                             break
-
+                        
                         if (
                             args.mlperf_logging
                             and (args.mlperf_auc_threshold > 0)
