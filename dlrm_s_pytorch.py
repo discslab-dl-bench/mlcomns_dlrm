@@ -878,8 +878,9 @@ def inference(
         if is_best:
             best_auc_test = validation_results["roc_auc"]
             model_metrics_dict["test_auc"] = best_auc_test
-        print(
-            "recall {:.4f}, precision {:.4f},".format(
+        logging.info(
+            "{} recall {:.4f}, precision {:.4f},".format(
+                utcnow(),
                 validation_results["recall"],
                 validation_results["precision"],
             )
@@ -891,14 +892,13 @@ def inference(
             )
             + " accuracy {:3.3f} %, best accuracy {:3.3f} %".format(
                 validation_results["accuracy"] * 100, best_acc_test * 100
-            ),
-            flush=True,
+            )
         )
     else:
         is_best = acc_test > best_acc_test
         if is_best:
             best_acc_test = acc_test
-        print(
+        logging.info(
             " accuracy {:3.3f} %, best {:3.3f} %".format(
                 acc_test * 100, best_acc_test * 100
             ),
@@ -1539,9 +1539,17 @@ def run():
 
                 if args.mlperf_logging:
                     previous_iteration_time = None
+                
+                log_training_period=True
 
                 for j, inputBatch in enumerate(train_ld):
-                    # logging.debug("{} Processing batch {}".format(utcnow(), j))
+                    
+                    # To keep track of trainnig vs evaluation periods
+                    if log_training_period and args.mlperf_logging:
+                        mlperf_logger.barrier()
+                        mlperf_logger.log_start(key="TRAINING_START")
+                        log_training_period = False
+
                     if j == 0 and args.save_onnx:
                         X_onnx, lS_o_onnx, lS_i_onnx, _, _, _ = unpack_batch(inputBatch)
 
@@ -1592,18 +1600,7 @@ def run():
                     E = loss_fn_wrap(Z, T, use_gpu, device)
 
                     # compute loss and accuracy
-                    L = E.detach().cpu().numpy()  # numpy array
-                    # training accuracy is not disabled
-                    # S = Z.detach().cpu().numpy()  # numpy array
-                    # T = T.detach().cpu().numpy()  # numpy array
-
-                    # # print("res: ", S)
-
-                    # # print("j, train: BCE ", j, L)
-
-                    # mbs = T.shape[0]  # = args.mini_batch_size except maybe for last
-                    # A = np.sum((np.round(S, 0) == T).astype(np.uint8))
-
+                    L = E.detach().cpu().numpy() 
                     with record_function("DLRM backward"):
                         # scaled error gradient propagation
                         # (where we do not accumulate gradients across mini-batches)
@@ -1657,6 +1654,7 @@ def run():
                         # Print out GPU memory use (gives more precise info than nvidia-smi)
                         for i in range(torch.cuda.device_count()):
                             logging.debug(f"{utcnow()} {torch.cuda.memory_summary(torch.device(f'cuda:{i}'), abbreviated=True)}")
+
                         log_iter = nbatches * k + j + 1
                         writer.add_scalar("Train/Loss", train_loss, log_iter)
 
@@ -1665,9 +1663,12 @@ def run():
 
                     # testing
                     if should_test:
+                        log_training_period = True
                         epoch_num_float = (j + 1) / len(train_ld) + k + 1
+                        
                         if args.mlperf_logging:
                             mlperf_logger.barrier()
+                            mlperf_logger.log_start(key="TRAINING_STOP")
                             mlperf_logger.log_start(
                                 key=mlperf_logger.constants.EVAL_START,
                                 metadata={

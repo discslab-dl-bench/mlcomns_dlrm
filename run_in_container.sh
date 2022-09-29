@@ -27,9 +27,9 @@ python dlrm_s_pytorch.py \
 --loss-function=bce \
 --round-targets=True \
 --learning-rate=0.1 \
---mini-batch-size=2048 \
+--mini-batch-size=16384 \
 --print-freq=1024 \
---test-freq=102400 \
+--test-freq=1024 \
 --test-mini-batch-size=16384 \
 --mlperf-logging \
 --mlperf-bin-loader \

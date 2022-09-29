@@ -277,7 +277,7 @@ class CriteoDataset(Dataset):
                     index.start or 0, index.stop or len(self), index.step or 1
                 )
             ]
-
+        # When memory map is enabled, we expect it to read from a single _<day>_reordered file at a time
         if self.memory_map:
             if self.split == 'none' or self.split == 'train':
                 # check if need to swicth to next day and load data
