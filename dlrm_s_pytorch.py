@@ -1051,6 +1051,13 @@ def run():
 
     if args.mlperf_logging:
         mlperf_logger.log_event(key=mlperf_logger.constants.CACHE_CLEAR, value=True)
+        mlperf_logger.mlperf_submission_log("dlrm") # Sets up the output to dlrm.log
+        mlperf_logger.log_event(
+            key=mlperf_logger.constants.SEED, value=args.numpy_rand_seed
+        )
+        mlperf_logger.log_event(
+            key=mlperf_logger.constants.GLOBAL_BATCH_SIZE, value=args.mini_batch_size
+        )
         mlperf_logger.log_start(
             key=mlperf_logger.constants.INIT_START, log_all_ranks=True
         )
@@ -1111,12 +1118,12 @@ def run():
     ln_bot = np.fromstring(args.arch_mlp_bot, dtype=int, sep="-")
     # input data
 
-    if args.mlperf_logging:
-        mlperf_logger.barrier()
-        mlperf_logger.log_end(key=mlperf_logger.constants.INIT_STOP)
-        mlperf_logger.barrier()
-        mlperf_logger.log_start(key=mlperf_logger.constants.RUN_START)
-        mlperf_logger.barrier()
+    # if args.mlperf_logging:
+    #     mlperf_logger.barrier()
+    #     mlperf_logger.log_end(key=mlperf_logger.constants.INIT_STOP)
+    #     mlperf_logger.barrier()
+    #     mlperf_logger.log_start(key=mlperf_logger.constants.RUN_START)
+    #     mlperf_logger.barrier()
 
     if args.data_generation == "dataset":
         # The direction that we usually go for
@@ -1386,15 +1393,6 @@ def run():
     total_iter = 0
     total_samp = 0
 
-    if args.mlperf_logging:
-        mlperf_logger.mlperf_submission_log("dlrm") # Sets up the output to dlrm.log
-        mlperf_logger.log_event(
-            key=mlperf_logger.constants.SEED, value=args.numpy_rand_seed
-        )
-        mlperf_logger.log_event(
-            key=mlperf_logger.constants.GLOBAL_BATCH_SIZE, value=args.mini_batch_size
-        )
-
     # Load model is specified
     if not (args.load_model == ""):
         logging.info("{} Loading saved model {}".format(utcnow(), args.load_model))
@@ -1482,8 +1480,6 @@ def run():
             dlrm.quantize_embedding(args.quantize_emb_with_bit)
             # print(dlrm)
 
-    logging.info("{} time/loss/accuracy (if enabled):".format(utcnow()))
-
     if args.mlperf_logging:
         # LR is logged twice for now because of a compliance checker bug
         mlperf_logger.log_event(
@@ -1521,6 +1517,8 @@ def run():
             while k < args.nepochs:
                 if args.mlperf_logging:
                     mlperf_logger.barrier()
+                    mlperf_logger.log_end(key=mlperf_logger.constants.INIT_STOP)
+                    mlperf_logger.log_start(key=mlperf_logger.constants.RUN_START)
                     mlperf_logger.log_start(
                         key=mlperf_logger.constants.BLOCK_START,
                         metadata={
