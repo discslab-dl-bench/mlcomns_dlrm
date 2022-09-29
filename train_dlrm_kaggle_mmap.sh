@@ -4,7 +4,7 @@
 
 mkdir -p output
 
-DATA_DIR="/raid/data/dlrm/kaggle"
+DATA_DIR="/raid/data/dlrm/kaggle_mmap"
 OUTPUT_DIR="/dl-bench/lhovon/mlcomns_dlrm/output"
 
 #Change line 9 for choosing mounted dataset
@@ -16,4 +16,4 @@ image_tag=${3:-latest}
 sudo docker run -it --rm --gpus $num_gpus --name $container_name \
 -v $DATA_DIR:/data_kaggle \
 -v $OUTPUT_DIR:/output \
-dlrm:$image_tag /bin/bash run_in_container.sh
+dlrm:$image_tag /bin/bash run_kaggle_mmap.sh

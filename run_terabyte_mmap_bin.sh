@@ -35,6 +35,8 @@ python dlrm_s_pytorch.py \
 --mlperf-logging \
 --mlperf-bin-loader \
 --mlperf-bin-shuffle \
+--log-file=/output/app.log \
+--memory-map \
 --test-num-workers=16 $dlrm_extra_option 2>&1
 
 # end timing

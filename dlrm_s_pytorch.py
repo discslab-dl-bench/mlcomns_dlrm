@@ -232,7 +232,7 @@ class DLRM_Net(nn.Module):
             else:
                 layers.append(nn.ReLU())
 
-        logging.info(f"{utcnow()} MLP created. Total size: {total_size} B")
+        logging.info(f"{utcnow()} MLP created. Total size: {total_size:,} B")
         # approach 1: use ModuleList
         # return layers
         # approach 2: use Sequential container to wrap all layers
@@ -274,7 +274,7 @@ class DLRM_Net(nn.Module):
                 EE.embs.weight.data = torch.tensor(W, requires_grad=True)
             else:
                 EE = nn.EmbeddingBag(n, m, mode="sum", sparse=True)
-                logging.info(f"{utcnow()} Creating {EE} with ({n * m} elements, each of size {np.dtype(np.float32).itemsize} B")
+                logging.info(f"{utcnow()} Creating {EE} with {n * m} elements, each of size {np.dtype(np.float32).itemsize} B")
                 total_size += np.dtype(np.float32).itemsize * n * m
                 # initialize embeddings
                 # nn.init.uniform_(EE.weight, a=-np.sqrt(1 / n), b=np.sqrt(1 / n))
@@ -292,7 +292,7 @@ class DLRM_Net(nn.Module):
             else:
                 v_W_l.append(torch.ones(n, dtype=torch.float32))
             emb_l.append(EE)
-        logging.info(f"{utcnow()} Embedding layers created. Total size: {total_size} B")
+        logging.info(f"{utcnow()} Embedding layers created. Total size: {total_size:,} B")
         return emb_l, v_W_l
 
     def __init__(

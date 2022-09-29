@@ -1,8 +1,10 @@
 #!/bin/bash
 
+##This is the script that starts the dlrm container and runs run_in_container.sh
+
 mkdir -p output
 
-DATA_DIR="/raid/data/dlrm/kaggle_NOmmap"
+DATA_DIR="/raid/data/dlrm/kaggle"
 OUTPUT_DIR="/dl-bench/lhovon/mlcomns_dlrm/output"
 
 #Change line 9 for choosing mounted dataset
@@ -14,4 +16,4 @@ image_tag=${3:-latest}
 sudo docker run -it --rm --gpus $num_gpus --name $container_name \
 -v $DATA_DIR:/data_kaggle \
 -v $OUTPUT_DIR:/output \
-dlrm:$image_tag
+dlrm:$image_tag /bin/bash run_kaggle.sh
