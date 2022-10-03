@@ -16,9 +16,9 @@
 sudo docker run -it \
 --gpus all \
 -m 256g \
--v /raid/data/dlrm/terabyte:/data_terabyte \
--v /raid/data/dlrm/terabyte:/code/input \
--v /raid/data/dlrm/proc_terabyte:/proc_data \
+-v /raid/data/dlrm/terabyte_mmap:/data_terabyte \
+-v /raid/data/dlrm/terabyte_mmap_bin:/code/input \
+-v /raid/data/dlrm/terabyte_mmap_bin:/proc_data \
 -v /raid/data/dlrm/dlrm_logs/mlperf_logs:/mlperf_saving_spot \
 -v /raid/data/dlrm/dlrm_logs/runtime_logs:/run_time_saving_spot \
 dlrm:test \
