@@ -1545,7 +1545,7 @@ def run():
                     # To keep track of trainnig vs evaluation periods
                     if log_training_period and args.mlperf_logging:
                         mlperf_logger.barrier()
-                        mlperf_logger.log_start(key="TRAINING_START")
+                        mlperf_logger.log_start(key="training_start")
                         log_training_period = False
 
                     if j == 0 and args.save_onnx:
@@ -1666,7 +1666,7 @@ def run():
                         
                         if args.mlperf_logging:
                             mlperf_logger.barrier()
-                            mlperf_logger.log_start(key="TRAINING_STOP")
+                            mlperf_logger.log_start(key="training_stop")
                             mlperf_logger.log_start(
                                 key=mlperf_logger.constants.EVAL_START,
                                 metadata={

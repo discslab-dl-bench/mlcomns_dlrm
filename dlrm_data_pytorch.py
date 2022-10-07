@@ -140,7 +140,7 @@ class CriteoDataset(Dataset):
         self.offset_per_file = np.array([0] + [x for x in total_per_file])
         for i in range(days):
             self.offset_per_file[i + 1] += self.offset_per_file[i]
-        # print(self.offset_per_file)
+        logging.info(f"{utcnow()} offsets per file: {self.offset_per_file}")
 
         # setup data
         if memory_map:

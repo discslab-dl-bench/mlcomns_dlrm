@@ -2,10 +2,12 @@
 
 ##This is the script that starts the dlrm container and runs run_in_container.sh
 
-mkdir -p output
-
 DATA_DIR="/raid/data/dlrm/kaggle"
-OUTPUT_DIR="/dl-bench/lhovon/mlcomns_dlrm/output"
+
+# Default output dir will be where this script is located
+SCRIPT_DIR=$(dirname -- "$( readlink -f -- "$0"; )")
+OUTPUT_DIR="${SCRIPT_DIR}/output"
+mkdir -p $OUTPUT_DIR
 
 #Change line 9 for choosing mounted dataset
 
