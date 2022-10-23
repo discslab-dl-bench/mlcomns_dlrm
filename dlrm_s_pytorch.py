@@ -765,6 +765,7 @@ def inference(
         targets = []
 
     for i, testBatch in enumerate(test_ld):
+        # print("Test batch:", i) #To figure out the number of test batch
         # early exit if nbatches was set by the user and was exceeded
         if nbatches > 0 and i >= nbatches:
             break
