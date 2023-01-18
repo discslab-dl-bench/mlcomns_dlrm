@@ -28,14 +28,16 @@ python dlrm_s_pytorch.py \
 --loss-function=bce \
 --round-targets=True \
 --learning-rate=0.1 \
---mini-batch-size=2048 \
---print-freq=1024 \
+--mini-batch-size=8192 \
+--print-freq=512 \
+--test-freq=16384 \
+--test-mini-batch-size=8192 \
 --print-time \
---test-mini-batch-size=16384 \
 --mlperf-logging \
 --mlperf-bin-shuffle \
 --log-file=/output/app.log \
 --memory-map \
+--num-workers=16 \
 --test-num-workers=16 $dlrm_extra_option 2>&1
 
 # end timing

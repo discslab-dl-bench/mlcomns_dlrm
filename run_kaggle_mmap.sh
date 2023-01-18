@@ -2,12 +2,7 @@
 
 # This is the file that serves as running the dlrm session on docker
 
-if [[ $# == 1 ]]; then
-    dlrm_extra_option=$1
-else
-    dlrm_extra_option=""
-fi
-#echo $dlrm_extra_option
+batch_size=${1:-16384}
 
 # start timing
 start=$(date +%s)
@@ -27,20 +22,17 @@ python dlrm_s_pytorch.py \
 --loss-function=bce \
 --round-targets=True \
 --learning-rate=0.1 \
---mini-batch-size=8192 \
---print-freq=1024 \
+--mini-batch-size=$batch_size \
+--print-freq=512 \
 --test-freq=1024 \
---test-mini-batch-size=8192 \
+--test-mini-batch-size=$batch_size \
 --mlperf-logging \
 --mlperf-bin-shuffle \
---debug-mode \
 --memory-map \
+--num-workers=16 \
 --log-file=/output/app.log
-# --mlperf-bin-loader \
-# --test-num-workers=16 $dlrm_extra_option
 
 cp /code/dlrm.log /output
-
 
 # end timing
 end=$(date +%s)

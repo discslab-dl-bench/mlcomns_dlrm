@@ -1,9 +1,10 @@
 #!/bin/bash
 
-mkdir -p output
-
-DATA_DIR="/raid/data/dlrm/kaggle_NOmmap"
-OUTPUT_DIR="/dl-bench/lhovon/mlcomns_dlrm/output"
+DATA_DIR="/raid/data/dlrm/kaggle_mmap"
+# Default output dir will be where this script is located
+SCRIPT_DIR=$(dirname -- "$( readlink -f -- "$0"; )")
+OUTPUT_DIR="${SCRIPT_DIR}/output"
+mkdir -p $OUTPUT_DIR
 
 #Change line 9 for choosing mounted dataset
 

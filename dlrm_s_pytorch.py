@@ -61,6 +61,7 @@ import datetime
 import json
 import sys
 import time
+from time import perf_counter_ns
 import logging
 
 # onnx
@@ -75,10 +76,12 @@ from log_utils import utcnow
 # For distributed run
 import extend_distributed as ext_dist
 import mlperf_logger
+from mlperf_logger import log_end
 
 # numpy
 import numpy as np
 import sklearn.metrics
+
 
 # pytorch
 import torch
@@ -640,7 +643,7 @@ class DLRM_Net(nn.Module):
             w_list = []
             for k, emb in enumerate(self.emb_l):
                 d = torch.device("cuda:" + str(k % ndevices))
-                logging.debug(f"{utcnow()} Distributing embedding {k} to {d}: {emb}")
+                logging.info(f"{utcnow()} Distributing embedding {k} to {d}: {emb}")
                 t_list.append(emb.to(d))
                 if self.weighted_pooling == "learned":
                     w_list.append(Parameter(self.v_W_l[k].to(d)))
@@ -654,7 +657,7 @@ class DLRM_Net(nn.Module):
             else:
                 self.v_W_l = w_list
             self.parallel_model_is_not_prepared = False
-            logging.debug(f"{utcnow()} Distributing Embeddings - done")
+            logging.info(f"{utcnow()} Distributing Embeddings - done")
 
         ### prepare input (overwrite) ###
         # scatter dense features (data parallelism)
@@ -781,6 +784,7 @@ def inference(
         scores = []
         targets = []
 
+    t_iter = t0 = perf_counter_ns()
     for i, testBatch in enumerate(test_ld):
         # early exit if nbatches was set by the user and was exceeded
         if nbatches > 0 and i >= nbatches:
@@ -789,7 +793,9 @@ def inference(
         X_test, lS_o_test, lS_i_test, T_test, W_test, CBPP_test = unpack_batch(
             testBatch
         )
+        log_end(key="eval_load_batch_mem", value={"start": t0, "duration": perf_counter_ns() - t0}, metadata = {"eval_step_num": log_iter})
 
+        t0 = perf_counter_ns()
         # Skip the batch if batch size not multiple of total ranks
         if ext_dist.my_size > 1 and X_test.size(0) % ext_dist.my_size != 0:
             logging.warn("{} Warning: Skiping the batch {} with size {}".format(utcnow(), i, X_test.size(0)))
@@ -804,15 +810,21 @@ def inference(
             device,
             ndevices=ndevices,
         )
+        log_end(key="eval_forward_pass", value={"start": t0, "duration": perf_counter_ns() - t0}, metadata = {"eval_step_num": log_iter})
+
+        t0 = perf_counter_ns()
         ### gather the distributed results on each rank ###
         # For some reason it requires explicit sync before all_gather call if
         # tensor is on GPU memory
         if Z_test.is_cuda:
             torch.cuda.synchronize()
         (_, batch_split_lengths) = ext_dist.get_split_lengths(X_test.size(0))
+
         if ext_dist.my_size > 1:
             Z_test = ext_dist.all_gather(Z_test, batch_split_lengths)
+        log_end(key="eval_all_gather", value={"start": t0, "duration": perf_counter_ns() - t0}, metadata = {"eval_step_num": log_iter})
 
+        t0 = perf_counter_ns()
         if args.mlperf_logging:
             S_test = Z_test.detach().cpu().numpy()  # numpy array
             T_test = T_test.detach().cpu().numpy()  # numpy array
@@ -830,6 +842,13 @@ def inference(
                 test_accu += A_test
                 test_samp += mbs_test
 
+        log_end(key="eval_score_compute", value={"start": t0, "duration": perf_counter_ns() - t0}, metadata = {"eval_step_num": log_iter})
+
+        log_end(key="eval_step_end", value={"start": t_iter, "duration": perf_counter_ns() - t_iter}, metadata={"eval_step_num": log_iter})
+        # Restart counters for next iteration
+        t_iter = t0 = perf_counter_ns()
+
+    t0 = perf_counter_ns()
     if args.mlperf_logging:
         with record_function("DLRM mlperf sklearn metrics compute"):
             scores = np.concatenate(scores, axis=0)
@@ -904,6 +923,8 @@ def inference(
             ),
             flush=True,
         )
+
+    log_end(key="eval_metrics_compute", value={"start": t_iter, "duration": perf_counter_ns() - t0}, metadata={"eval_step_num": log_iter})
     return model_metrics_dict, is_best
 
 
@@ -944,7 +965,7 @@ def run():
     parser.add_argument("--round-targets", type=bool, default=False)
     # data
     parser.add_argument("--data-size", type=int, default=1)
-    parser.add_argument("--num-batches", type=int, default=0)
+    
     parser.add_argument(
         "--data-generation", type=str, default="random"
     )  # synthetic or dataset
@@ -969,7 +990,10 @@ def run():
     parser.add_argument("--memory-map", action="store_true", default=False)
     # training
     parser.add_argument("--mini-batch-size", type=int, default=1)
+    # for early stopping
     parser.add_argument("--nepochs", type=int, default=1)
+    parser.add_argument("--num-batches", type=int, default=0)
+
     parser.add_argument("--learning-rate", type=float, default=0.01)
     parser.add_argument("--print-precision", type=int, default=5)
     parser.add_argument("--numpy-rand-seed", type=int, default=123)
@@ -1024,7 +1048,7 @@ def run():
     parser.add_argument("--lr-decay-start-step", type=int, default=0)
     parser.add_argument("--lr-num-decay-steps", type=int, default=0)
     parser.add_argument("--debug-mode", action="store_true", default=False)
-    parser.add_argument("--log-file", type=str, default="/output/app.log")
+    parser.add_argument("--log-file", type=str, default="./output/app.log")
 
     global args
     global nbatches
@@ -1132,9 +1156,10 @@ def run():
         nbatches = args.num_batches if args.num_batches > 0 else len(train_ld)
         nbatches_test = len(test_ld)
 
-        logging.info(f"{utcnow()} train_data: {train_data}")
+        logging.info(f"{utcnow()} train_data: {len(train_data)}")
         ln_emb = train_data.counts
-        logging.info(f"{utcnow()} train_data.counts: {train_data.counts}")
+        logging.info(f"{utcnow()} train_data.counts (=ln_emb):\n{train_data.counts}")
+
         # enforce maximum limit on number of vectors per embedding
         if args.max_ind_range > 0:
             ln_emb = np.array(
@@ -1329,8 +1354,8 @@ def run():
             )
         else:
             if dlrm.weighted_pooling == "fixed":
-                for k, w in enumerate(dlrm.v_W_l):
-                    dlrm.v_W_l[k] = w.cuda()
+                for epoch_num, w in enumerate(dlrm.v_W_l):
+                    dlrm.v_W_l[epoch_num] = w.cuda()
 
     # distribute data parallel mlps
     if ext_dist.my_size > 1:
@@ -1413,6 +1438,7 @@ def run():
         else:
             # when targeting inference on CPU
             ld_model = torch.load(args.load_model, map_location=torch.device("cpu"))
+
         dlrm.load_state_dict(ld_model["state_dict"])
         ld_j = ld_model["iter"]
         ld_k = ld_model["epoch"]
@@ -1508,13 +1534,12 @@ def run():
     logging.info(f"{utcnow()} Starting Training")
 
     ext_dist.barrier()
-    with torch.autograd.profiler.profile(
-        args.enable_profiling, use_cuda=use_gpu, record_shapes=True
-    ) as prof:
+    with torch.autograd.profiler.profile(args.enable_profiling, use_cuda=False, with_stack=True) as prof:
         if not args.inference_only:
-            k = 0
+            epoch_num = 0
             total_time_begin = 0
-            while k < args.nepochs:
+
+            while epoch_num < args.nepochs:
                 if args.mlperf_logging:
                     mlperf_logger.barrier()
                     mlperf_logger.log_end(key=mlperf_logger.constants.INIT_STOP)
@@ -1522,17 +1547,17 @@ def run():
                     mlperf_logger.log_start(
                         key=mlperf_logger.constants.BLOCK_START,
                         metadata={
-                            mlperf_logger.constants.FIRST_EPOCH_NUM: (k + 1),
+                            mlperf_logger.constants.FIRST_EPOCH_NUM: (epoch_num + 1),
                             mlperf_logger.constants.EPOCH_COUNT: 1,
                         },
                     )
                     mlperf_logger.barrier()
                     mlperf_logger.log_start(
                         key=mlperf_logger.constants.EPOCH_START,
-                        metadata={mlperf_logger.constants.EPOCH_NUM: (k + 1)},
+                        metadata={mlperf_logger.constants.EPOCH_NUM: (epoch_num + 1)},
                     )
 
-                if k < skip_upto_epoch:
+                if epoch_num < skip_upto_epoch:
                     continue
 
                 if args.mlperf_logging:
@@ -1540,21 +1565,23 @@ def run():
                 
                 log_training_period=True
 
-                for j, inputBatch in enumerate(train_ld):
-                    
+                t_iter = t0 = perf_counter_ns()
+                for step_num, inputBatch in enumerate(train_ld):
+
                     # To keep track of trainnig vs evaluation periods
                     if log_training_period and args.mlperf_logging:
                         mlperf_logger.barrier()
                         mlperf_logger.log_start(key="training_start")
                         log_training_period = False
 
-                    if j == 0 and args.save_onnx:
-                        X_onnx, lS_o_onnx, lS_i_onnx, _, _, _ = unpack_batch(inputBatch)
+                    # if j == 0 and args.save_onnx:
+                    #     X_onnx, lS_o_onnx, lS_i_onnx, _, _, _ = unpack_batch(inputBatch)
 
-                    if j < skip_upto_batch:
+                    if step_num < skip_upto_batch:
                         continue
 
                     X, lS_o, lS_i, T, W, CBPP = unpack_batch(inputBatch)
+                    log_end(key="load_batch_mem", value={"start": t0, "duration": perf_counter_ns() - t0})
 
                     if args.mlperf_logging:
                         current_time = time_wrap(use_gpu)
@@ -1567,18 +1594,19 @@ def run():
                         t1 = time_wrap(use_gpu)
 
                     # early exit if nbatches was set by the user and has been exceeded
-                    if nbatches > 0 and j >= nbatches:
+                    if nbatches > 0 and step_num >= nbatches:
                         break
 
                     # Skip the batch if batch size not multiple of total ranks
                     if ext_dist.my_size > 1 and X.size(0) % ext_dist.my_size != 0:
                         logging.warn(
-                            "{} Warning: Skiping the batch {} with size {}".format(utcnow(), j, X.size(0))
+                            "{} Warning: Skiping the batch {} with size {}".format(utcnow(), step_num, X.size(0))
                         )
                         continue
 
                     mbs = T.shape[0]  # = args.mini_batch_size except maybe for last
 
+                    t0 = perf_counter_ns()
                     # forward pass
                     # The model will distribute the embeddings here during its first forward pass
                     Z = dlrm_wrap(
@@ -1589,28 +1617,38 @@ def run():
                         device,
                         ndevices=ndevices,
                     )
+                    log_end(key="model_forward_pass", value={"start": t0, "duration": perf_counter_ns() - t0})
 
+
+                    t0 = perf_counter_ns()
                     if ext_dist.my_size > 1:
                         T = T[ext_dist.get_my_slice(mbs)]
                         W = W[ext_dist.get_my_slice(mbs)]
 
                     # loss
                     E = loss_fn_wrap(Z, T, use_gpu, device)
-
                     # compute loss and accuracy
                     L = E.detach().cpu().numpy() 
+
+                    log_end(key="loss_tensor_calc", value={"start": t0, "duration": perf_counter_ns() - t0})
+
                     with record_function("DLRM backward"):
+                        t0 = perf_counter_ns()
                         # scaled error gradient propagation
                         # (where we do not accumulate gradients across mini-batches)
-                        if (args.mlperf_logging and (j + 1) % args.mlperf_grad_accum_iter == 0) or not args.mlperf_logging:
+                        if (args.mlperf_logging and (step_num + 1) % args.mlperf_grad_accum_iter == 0) or not args.mlperf_logging:
                             optimizer.zero_grad()
                         # backward pass
                         E.backward()
+                        log_end(key="model_backward_pass", value={"start": t0, "duration": perf_counter_ns() - t0})
 
                         # optimizer
-                        if (args.mlperf_logging and (j + 1) % args.mlperf_grad_accum_iter == 0) or not args.mlperf_logging:
+                        if (args.mlperf_logging and (step_num + 1) % args.mlperf_grad_accum_iter == 0) or not args.mlperf_logging:
+                            t0 = perf_counter_ns()
                             optimizer.step()
                             lr_scheduler.step()
+                            log_end(key="model_optim_step", value={"start": t0, "duration": perf_counter_ns() - t0})
+
 
                     if args.mlperf_logging:
                         total_time += iteration_time
@@ -1622,14 +1660,16 @@ def run():
                     total_iter += 1
                     total_samp += mbs
 
-                    should_print = ((j + 1) % args.print_freq == 0) or (
-                        j + 1 == nbatches
+                    should_print = ((step_num + 1) % args.print_freq == 0) or (
+                        step_num + 1 == nbatches
                     )
                     should_test = (
                         (args.test_freq > 0)
                         and (args.data_generation in ["dataset", "random"])
-                        and (((j + 1) % args.test_freq == 0) or (j + 1 == nbatches))
+                        and (((step_num + 1) % args.test_freq == 0) or (step_num + 1 == nbatches))
                     )
+
+                    log_end(key="step_end", value={"start": t_iter, "duration": perf_counter_ns() - t_iter})
 
                     # print time, loss and accuracy
                     if should_print or should_test:
@@ -1644,16 +1684,17 @@ def run():
                             "inference" if args.inference_only else "training"
                         )
 
-                        wall_time = ""
-                        if args.print_wall_time:
-                            wall_time = " ({})".format(time.strftime("%H:%M"))
+                        # wall_time = ""
+                        # if args.print_wall_time:
+                        #     wall_time = " ({})".format(time.strftime("%H:%M"))
 
-                        logging.info(f"{utcnow()} Finished {str_run_type} on batch {j+1}/{nbatches} of epoch {k}, {gT:.2f} ms/batch, {time_per_sample:.2f} ms/sample, loss {train_loss:.6f}")
+                        logging.info(f"{utcnow()} Finished {str_run_type} on batch {step_num+1}/{nbatches} of epoch {epoch_num}, {gT:.2f} ms/batch, {time_per_sample:.2f} ms/sample, loss {train_loss:.6f}")
                         # Print out GPU memory use (gives more precise info than nvidia-smi)
-                        for i in range(torch.cuda.device_count()):
-                            logging.debug(f"{utcnow()} {torch.cuda.memory_summary(torch.device(f'cuda:{i}'), abbreviated=True)}")
+                        # for i in range(torch.cuda.device_count()):
+                        #     # logging.info(f"{utcnow()} {torch.cuda.memory_summary(torch.device(f'cuda:{i}'), abbreviated=True)}")
+                        #     logging.info(f"{utcnow()} GPU {i} Allocated memory: {torch.cuda.memory_allocated(torch.device(f'cuda:{i}'))}")
 
-                        log_iter = nbatches * k + j + 1
+                        log_iter = nbatches * epoch_num + step_num + 1
                         writer.add_scalar("Train/Loss", train_loss, log_iter)
 
                         total_iter = 0
@@ -1662,7 +1703,7 @@ def run():
                     # testing
                     if should_test:
                         log_training_period = True
-                        epoch_num_float = (j + 1) / len(train_ld) + k + 1
+                        epoch_num_float = (step_num + 1) / len(train_ld) + epoch_num + 1
                         
                         if args.mlperf_logging:
                             mlperf_logger.barrier()
@@ -1678,7 +1719,7 @@ def run():
                         if args.mlperf_logging:
                             previous_iteration_time = None
                         logging.info(
-                            "{} Testing at - {}/{} of epoch {},".format(utcnow(), j + 1, nbatches, k)
+                            "{} Testing at - {}/{} of epoch {},".format(utcnow(), step_num + 1, nbatches, epoch_num)
                         )
                         model_metrics_dict, is_best = inference(
                             args,
@@ -1691,21 +1732,20 @@ def run():
                             log_iter,
                         )
 
-                        if (
-                            is_best
-                            and not (args.save_model == "")
-                            and not args.inference_only
-                        ):
-                            model_metrics_dict["epoch"] = k
-                            model_metrics_dict["iter"] = j + 1
-                            model_metrics_dict["train_loss"] = train_loss
-                            model_metrics_dict["total_loss"] = total_loss
-                            model_metrics_dict[
-                                "opt_state_dict"
-                            ] = optimizer.state_dict()
-                            logging.info("{} Saving model to {}".format(utcnow(), args.save_model))
-                            torch.save(model_metrics_dict, args.save_model)
-                            logging.info("{} Model saved".format(utcnow()))
+                        if (is_best and not (args.save_model == "") and not args.inference_only):
+                            with record_function("DLRM ckpt"):
+                                mlperf_logger.log_start(key="checkpoint_start")
+                                model_metrics_dict["epoch"] = epoch_num
+                                model_metrics_dict["iter"] = step_num + 1
+                                model_metrics_dict["train_loss"] = train_loss
+                                model_metrics_dict["total_loss"] = total_loss
+                                model_metrics_dict[
+                                    "opt_state_dict"
+                                ] = optimizer.state_dict()
+                                logging.info("{} Saving model to {}".format(utcnow(), args.save_model))
+                                torch.save(model_metrics_dict, args.save_model)
+                                logging.info("{} Model saved".format(utcnow()))
+                                mlperf_logger.log_start(key="checkpoint_stop")
 
                         if args.mlperf_logging:
                             mlperf_logger.barrier()
@@ -1721,23 +1761,23 @@ def run():
                         # .format(time_wrap(use_gpu) - accum_test_time_begin))
                         logging.info(f"{utcnow()} Testing done")
 
-                        if (
-                            args.mlperf_logging
-                            and (args.mlperf_acc_threshold > 0)
-                            and (best_acc_test > args.mlperf_acc_threshold)
-                        ):
+                        if (args.mlperf_logging and (args.mlperf_acc_threshold > 0) and (best_acc_test > args.mlperf_acc_threshold)):
                             print(
                                 "MLPerf testing accuracy threshold "
                                 + str(args.mlperf_acc_threshold)
                                 + " reached, stop training"
                             )
+                            if args.mlperf_logging:
+                                mlperf_logger.barrier()
+                                mlperf_logger.log_end(
+                                    key=mlperf_logger.constants.RUN_STOP,
+                                    metadata={
+                                        mlperf_logger.constants.STATUS: mlperf_logger.constants.SUCCESS
+                                    },
+                                )
                             break
                         
-                        if (
-                            args.mlperf_logging
-                            and (args.mlperf_auc_threshold > 0)
-                            and (best_auc_test > args.mlperf_auc_threshold)
-                        ):
+                        if (args.mlperf_logging and (args.mlperf_auc_threshold > 0) and (best_auc_test > args.mlperf_auc_threshold)):
                             print(
                                 "MLPerf testing auc threshold "
                                 + str(args.mlperf_auc_threshold)
@@ -1752,19 +1792,22 @@ def run():
                                     },
                                 )
                             break
+                        
+                    # Restart counters for next step
+                    t_iter = t0 = perf_counter_ns()
 
                 if args.mlperf_logging:
                     mlperf_logger.barrier()
                     mlperf_logger.log_end(
                         key=mlperf_logger.constants.EPOCH_STOP,
-                        metadata={mlperf_logger.constants.EPOCH_NUM: (k + 1)},
+                        metadata={mlperf_logger.constants.EPOCH_NUM: (epoch_num + 1)},
                     )
                     mlperf_logger.barrier()
                     mlperf_logger.log_end(
                         key=mlperf_logger.constants.BLOCK_STOP,
-                        metadata={mlperf_logger.constants.FIRST_EPOCH_NUM: (k + 1)},
+                        metadata={mlperf_logger.constants.FIRST_EPOCH_NUM: (epoch_num + 1)},
                     )
-                k += 1  # nepochs
+                epoch_num += 1  # nepochs
             if args.mlperf_logging and best_auc_test <= args.mlperf_auc_threshold:
                 mlperf_logger.barrier()
                 mlperf_logger.log_end(
@@ -1787,16 +1830,17 @@ def run():
 
     # profiling
     if args.enable_profiling:
+        print(f"Writing out profiler trace")
         time_stamp = str(datetime.datetime.now()).replace(" ", "_")
-        with open("dlrm_s_pytorch" + time_stamp + "_shape.prof", "w") as prof_f:
+        with open("./output/dlrm_s_pytorch" + time_stamp + "_shape.prof", "w") as prof_f:
             prof_f.write(
                 prof.key_averages(group_by_input_shape=True).table(
                     sort_by="self_cpu_time_total"
                 )
             )
-        with open("dlrm_s_pytorch" + time_stamp + "_total.prof", "w") as prof_f:
+        with open("./output/dlrm_s_pytorch" + time_stamp + "_total.prof", "w") as prof_f:
             prof_f.write(prof.key_averages().table(sort_by="self_cpu_time_total"))
-        prof.export_chrome_trace("dlrm_s_pytorch" + time_stamp + ".json")
+        prof.export_chrome_trace("./output/dlrm_s_pytorch" + time_stamp + ".json")
         # print(prof.key_averages().table(sort_by="cpu_time_total"))
 
     # plot compute graph

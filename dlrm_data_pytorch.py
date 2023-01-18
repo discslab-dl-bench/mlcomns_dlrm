@@ -472,6 +472,7 @@ def make_criteo_data_and_loaders(args, offset_to_length_converter=False):
                 collate_fn=None,
                 pin_memory=False,
                 drop_last=False,
+                # prefetch_factor=5,
                 sampler=RandomSampler(train_data) if args.mlperf_bin_shuffle else None
             )
 

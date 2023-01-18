@@ -13,7 +13,7 @@ RUN apt-get update && \
 ADD . /code
 WORKDIR /code
 
-RUN pip install -r requirements.txt
+RUN pip install --ignore-installed -r requirements.txt
 
 RUN git clone https://github.com/mlperf/logging.git mlperf-logging
 RUN pip install --ignore-installed -e mlperf-logging
