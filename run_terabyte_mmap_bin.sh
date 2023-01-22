@@ -6,14 +6,8 @@
 BATCH_SIZE=${1:-2048}
 BATCH_SIZE_EVAL=${2:-16384}
 NUM_BATCHES=${3:-3072}
+# Use this to send --enable-profiling
 EXTRA_OPTS=${4:-""}
-
-# if [[ $# == 2 ]]; then
-#     dlrm_extra_option=$2
-# else
-#     dlrm_extra_option=""
-# fi
-#echo $dlrm_extra_option
 
 # start timing
 start=$(date +%s)
