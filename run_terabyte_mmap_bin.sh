@@ -20,6 +20,7 @@ start=$(date +%s)
 start_fmt=$(date +%Y-%m-%d\ %r)
 echo "---Start running dlrm with Terabyte dataset at $start_fmt---"
 
+# Reference run parameters!
 python dlrm_s_pytorch.py --arch-sparse-feature-size=128 --arch-mlp-bot="13-512-256-128" \
     --arch-mlp-top="1024-1024-512-256-1" --max-ind-range=40000000 --data-generation=dataset \
     --data-set=terabyte \

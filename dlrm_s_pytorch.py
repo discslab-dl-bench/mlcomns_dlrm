@@ -1309,6 +1309,10 @@ def run():
     global ndevices
     ndevices = min(ngpus, args.mini_batch_size, num_fea - 1) if use_gpu else -1
 
+    logging.info(f"Len test dataloader: {len(test_ld)} batches of size {args.mini_batch_size} = {args.mini_batch_size * len(train_ld)}")
+    logging.info(f"Len test dataloader: {len(test_ld)} batches of size {args.test_mini_batch_size} = {args.test_mini_batch_size * len(test_ld)}")
+
+
     ### construct the neural network specified above ###
     # WARNING: to obtain exactly the same initialization for
     # the weights we need to start from the same random seed.
