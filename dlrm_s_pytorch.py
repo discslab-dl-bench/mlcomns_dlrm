@@ -639,17 +639,22 @@ class DLRM_Net(nn.Module):
                 self.v_W_l = w_list
             self.parallel_model_is_not_prepared = False
 
+        # print(f'The shape of lS_o is: {lS_o.shape}')    # Shape is [26, batch_size]
+        # print(f'The shape of lS_i is: {lS_i.shape}')    # Shape is [26, batch_size]
+        # print(f'The size of emb_l is: {nn.ModuleList.__len__(self.emb_l)}')
+        # print(f'The size of v_W_l is: {nn.ParameterList.__len__(self.v_W_l)}')
+
         ### prepare input (overwrite) ###
         # scatter dense features (data parallelism)
         # print(dense_x.device)
-        dense_x = scatter(dense_x, device_ids, dim=0)
+        dense_x = scatter(dense_x, device_ids, dim=0)           # Deal with the 13 dense integer features
         # distribute sparse features (model parallelism)
-        if (len(self.emb_l) != len(lS_o)) or (len(self.emb_l) != len(lS_i)):
+        if (len(self.emb_l) != len(lS_o)) or (len(self.emb_l) != len(lS_i)):        # We know by this assertion that the size of embedding list is 26
             sys.exit("ERROR: corrupted model input detected in parallel_forward call")
 
         t_list = []
         i_list = []
-        for k, _ in enumerate(self.emb_l):
+        for k, _ in enumerate(self.emb_l):                      # for each of the 26 categorical features, distribute to gpu in a round robin way 
             d = torch.device("cuda:" + str(k % ndevices))
             t_list.append(lS_o[k].to(d))
             i_list.append(lS_i[k].to(d))
@@ -666,6 +671,11 @@ class DLRM_Net(nn.Module):
         x = parallel_apply(self.bot_l_replicas, dense_x, None, device_ids)
         # debug prints
         # print(x)
+
+        print(f'After pa, The shape of lS_o is: {len(lS_o)}')
+        print(f'After pa, The shape of lS_i is: {len(lS_i)}')
+        # print(f'After pa, The size of emb_l is: {nn.ModuleList.__len__(self.emb_l)}')
+        # print(f'After pa, The size of v_W_l is: {nn.ParameterList.__len__(self.v_W_l)}')
 
         # embeddings
         ly = self.apply_emb(lS_o, lS_i, self.emb_l, self.v_W_l)
