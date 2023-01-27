@@ -15,6 +15,7 @@
 
 sudo docker run -it \
 --gpus all \
+--name dlrm_terabyte \
 -m 256g \
 -v /raid/data/dlrm/terabyte_mmap:/data_terabyte \
 -v /raid/data/dlrm/terabyte_mmap_bin:/code/input \
@@ -23,3 +24,6 @@ sudo docker run -it \
 -v /raid/data/dlrm/dlrm_logs/runtime_logs:/run_time_saving_spot \
 dlrm:test \
 /bin/bash run_terabyte.sh
+
+docker rm dlrm_terabyte
+

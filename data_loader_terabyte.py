@@ -82,6 +82,7 @@ def _transform_features(
 
     batch_size = x_cat_batch.shape[0]
     feature_count = x_cat_batch.shape[1]
+    #feature_count would be the # of rows, batch_size would be the # of colns
     lS_o = torch.arange(batch_size).reshape(1, -1).repeat(feature_count, 1)
 
     return x_int_batch, lS_o, x_cat_batch.t(), y_batch.view(-1, 1)
@@ -230,8 +231,8 @@ class CriteoBinDataset(Dataset):
         array = np.frombuffer(raw_data, dtype=np.int32)
         tensor = torch.from_numpy(array).view((-1, self.tot_fea))
 
-        return _transform_features(x_int_batch=tensor[:, 1:14],
-                                   x_cat_batch=tensor[:, 14:],
+        return _transform_features(x_int_batch=tensor[:, 1:14],# 20
+                                   x_cat_batch=tensor[:, 14:], # 2048 x 26
                                    y_batch=tensor[:, 0],
                                    max_ind_range=self.max_ind_range,
                                    flag_input_torch_tensor=True)

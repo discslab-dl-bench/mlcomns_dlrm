@@ -1488,7 +1488,7 @@ def run():
 
     ext_dist.barrier()
     with torch.autograd.profiler.profile(
-        args.enable_profiling, use_cuda=use_gpu, record_shapes=True
+        args.enable_profiling, use_cuda=use_gpu, record_shapes=True, with_stack=True
     ) as prof:
         if not args.inference_only:
             k = 0
