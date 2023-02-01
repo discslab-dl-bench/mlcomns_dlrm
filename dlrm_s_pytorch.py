@@ -146,6 +146,41 @@ def loss_fn_wrap(Z, T, use_gpu, device):
             loss_sc_ = loss_ws_ * loss_fn_
             return loss_sc_.mean()
 
+# The following function is a wrapper to avoid checking this multiple times in th
+# loop below.
+
+# Main logic: 
+# inputBatch <- transform_features(...) <- Dataloader.__getitem__()
+# X, lS_o, lS_i, T, W, CBPP <- unpack_batch(inputBatch)
+#
+# The transform_features function has signature: def _transform_features(
+#         x_int_batch, x_cat_batch, y_batch, max_ind_range, flag_input_torch_tensor=False
+# )
+#
+# The inputBatch has the format: _transform_features(x_int_batch=tensor[:, 1:14],        # x_int_batch -> 13 dense integer features
+#                                    x_cat_batch=tensor[:, 14:],                         # x_cat_batch -> 26 sparse categorical features
+#                                    y_batch=tensor[:, 0],                               # y_batch     -> labels (labelled as either positive or negative)
+#                                    max_ind_range=self.max_ind_range,                   # A parameter of DLRM
+#                                    flag_input_torch_tensor=True)
+#
+# The output of transform_features is (x_int_batch, 
+#                                      lS_o, 
+#                                      x_cat_batch.t(), 
+#                                      y_batch.view(-1, 1)
+#                                      )
+#
+# Thus, we get the outputs from unpack_batch
+# where:    X: the x_int_batch, which contains transformed 13 dense integer features
+#
+#           lS_o: a tensor with size([feature_count, batch_size]), where # of rows is catgorical feature count (26) and # of cols is the batch_size
+#                 | batch_size = x_cat_batch.shape[0]
+#                 | feature_count = x_cat_batch.shape[1]
+#                 | lS_o = torch.arange(batch_size).reshape(1, -1).repeat(feature_count, 1)
+#
+#           lS_i: the transpose of trasnformed 26 categorical sparse features
+#   
+#           T: the flattened (batch_size x 1) label tensor
+#           W: A (batch_size x 1) ones vector
 
 # The following function is a wrapper to avoid checking this multiple times in th
 # loop below.
@@ -639,8 +674,8 @@ class DLRM_Net(nn.Module):
                 self.v_W_l = w_list
             self.parallel_model_is_not_prepared = False
 
-        # print(f'The shape of lS_o is: {lS_o.shape}')    # Shape is [26, batch_size]
-        # print(f'The shape of lS_i is: {lS_i.shape}')    # Shape is [26, batch_size]
+        # print(f'The shape of lS_o is: {lS_o.shape}')    # Shape is [26, batch_size] -> (26, 2048)
+        # print(f'The shape of lS_i is: {lS_i.shape}')    # Shape is [26, batch_size] -> (26, 2048)
         # print(f'The size of emb_l is: {nn.ModuleList.__len__(self.emb_l)}')
         # print(f'The size of v_W_l is: {nn.ParameterList.__len__(self.v_W_l)}')
 
@@ -656,10 +691,12 @@ class DLRM_Net(nn.Module):
         i_list = []
         for k, _ in enumerate(self.emb_l):                      # for each of the 26 categorical features, distribute to gpu in a round robin way 
             d = torch.device("cuda:" + str(k % ndevices))
-            t_list.append(lS_o[k].to(d))
-            i_list.append(lS_i[k].to(d))
-        lS_o = t_list
-        lS_i = i_list
+            t_list.append(lS_o[k].to(d))                        # The offset of each of the 26 categorical feature
+            i_list.append(lS_i[k].to(d))                        # The actual 26 categorical feature
+        # By the operation above, we basically assigned a device to each categorical feature. Make this the new lS_o and lS_i
+        # Each entry of the lists is a batch_size length vector of the corresponding feature
+        lS_o = t_list                                           
+        lS_i = i_list                                           
 
         ### compute results in parallel ###
         # bottom mlp
@@ -668,12 +705,16 @@ class DLRM_Net(nn.Module):
         # inputs that has been scattered across devices on the first (batch) dimension.
         # The output is a list of tensors scattered across devices according to the
         # distribution of dense_x.
-        x = parallel_apply(self.bot_l_replicas, dense_x, None, device_ids)
+        #----------------------------------
+        ## a thread is spawned for each (module, input) pair, in which forward() is called on the module with its corresponding input. 
+        # The outputs of the individual calls are stored in a vector and returned.
+        x = parallel_apply(self.bot_l_replicas, dense_x, None, device_ids)   
+
         # debug prints
         # print(x)
 
-        print(f'After pa, The shape of lS_o is: {len(lS_o)}')
-        print(f'After pa, The shape of lS_i is: {len(lS_i)}')
+        # print(f'After pa, The length of lS_o is: {len(lS_o)}')  -> 26
+        # print(f'After pa, The length of lS_i is: {len(lS_i)}')  -> 26
         # print(f'After pa, The size of emb_l is: {nn.ModuleList.__len__(self.emb_l)}')
         # print(f'After pa, The size of v_W_l is: {nn.ParameterList.__len__(self.v_W_l)}')
 
