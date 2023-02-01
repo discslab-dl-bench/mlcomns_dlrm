@@ -122,22 +122,22 @@ def time_wrap(use_gpu):
 
 
 def dlrm_wrap(X, lS_o, lS_i, use_gpu, device, ndevices=1):
-    with record_function("DLRM forward"):
-        if use_gpu:  # .cuda()
-            # lS_i can be either a list of tensors or a stacked tensor.
-            # Handle each case below:
-            if ndevices == 1:
-                lS_i = (
-                    [S_i.to(device) for S_i in lS_i]
-                    if isinstance(lS_i, list)
-                    else lS_i.to(device)
-                )
-                lS_o = (
-                    [S_o.to(device) for S_o in lS_o]
-                    if isinstance(lS_o, list)
-                    else lS_o.to(device)
-                )
-        return dlrm(X.to(device), lS_o, lS_i)
+    # with record_function("DLRM forward"):
+    if use_gpu:  # .cuda()
+        # lS_i can be either a list of tensors or a stacked tensor.
+        # Handle each case below:
+        if ndevices == 1:
+            lS_i = (
+                [S_i.to(device) for S_i in lS_i]
+                if isinstance(lS_i, list)
+                else lS_i.to(device)
+            )
+            lS_o = (
+                [S_o.to(device) for S_o in lS_o]
+                if isinstance(lS_o, list)
+                else lS_o.to(device)
+            )
+    return dlrm(X.to(device), lS_o, lS_i)
 
 
 def loss_fn_wrap(Z, T, use_gpu, device):
@@ -663,6 +663,7 @@ class DLRM_Net(nn.Module):
         # scatter dense features (data parallelism)
         # print(dense_x.device)
         dense_x = scatter(dense_x, device_ids, dim=0)
+        
         # distribute sparse features (model parallelism)
         if (len(self.emb_l) != len(lS_o)) or (len(self.emb_l) != len(lS_i)):
             sys.exit("ERROR: corrupted model input detected in parallel_forward call")

@@ -80,8 +80,17 @@ def _transform_features(
         x_cat_batch = torch.tensor(x_cat_batch, dtype=torch.long)
         y_batch = torch.tensor(y_batch, dtype=torch.float32).view(-1, 1)
 
+    import code
+    code.interact(local=locals())
+
     batch_size = x_cat_batch.shape[0]
     feature_count = x_cat_batch.shape[1]
+    # gonna have feature_count rows of length batch_size
+    # [[0,1,2...batch_size],
+    #  [0,1,2...batch_size],
+    #  [0,1,2...batch_size],
+    #  ....
+    #  [0,1,2...batch_size]]
     lS_o = torch.arange(batch_size).reshape(1, -1).repeat(feature_count, 1)
 
     return x_int_batch, lS_o, x_cat_batch.t(), y_batch.view(-1, 1)
@@ -225,11 +234,12 @@ class CriteoBinDataset(Dataset):
         return self.num_entries
 
     def __getitem__(self, idx):
+        # Reads in a whole batch of data at once from the file
         self.file.seek(idx * self.bytes_per_entry, 0)
         raw_data = self.file.read(self.bytes_per_entry)
         array = np.frombuffer(raw_data, dtype=np.int32)
         tensor = torch.from_numpy(array).view((-1, self.tot_fea))
-
+        
         return _transform_features(x_int_batch=tensor[:, 1:14],
                                    x_cat_batch=tensor[:, 14:],
                                    y_batch=tensor[:, 0],
