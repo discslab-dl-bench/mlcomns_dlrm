@@ -14,7 +14,7 @@ import time
 import math
 from tqdm import tqdm
 import argparse
-
+import logging
 
 class DataLoader:
     """
@@ -80,8 +80,8 @@ def _transform_features(
         x_cat_batch = torch.tensor(x_cat_batch, dtype=torch.long)
         y_batch = torch.tensor(y_batch, dtype=torch.float32).view(-1, 1)
 
-    import code
-    code.interact(local=locals())
+    # import code
+    # code.interact(local=locals())
 
     batch_size = x_cat_batch.shape[0]
     feature_count = x_cat_batch.shape[1]
@@ -108,6 +108,7 @@ def _batch_generator(
 
         # print('Loading file: ', filepath)
         with np.load(filepath) as data:
+            logging.info(f'Loading all data from {filepath}')
             x_int = data["X_int"]
             x_cat = data["X_cat"]
             y = data["y"]

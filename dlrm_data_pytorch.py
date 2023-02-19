@@ -101,6 +101,7 @@ class CriteoDataset(Dataset):
             for i in range(days):
                 reo_data = self.npzfile + "_{0}_reordered.npz".format(i)
                 if not path.exists(str(reo_data)):
+                    print(f'Could not find {reo_data}')
                     data_ready = False
         else:
             if not path.exists(str(pro_data)):
@@ -203,6 +204,7 @@ class CriteoDataset(Dataset):
             # Load the test data
             # Only a single day is used for testing
             if self.split == 'test' or self.split == 'val':
+                print(f'np loading the testing data from day {self.day}')
                 # only a single day is used for testing
                 fi = self.npzfile + "_{0}_reordered.npz".format(
                     self.day
@@ -468,11 +470,10 @@ def make_criteo_data_and_loaders(args, offset_to_length_converter=False):
                 batch_size=None,
                 batch_sampler=None,
                 shuffle=False,
-                num_workers=0,
+                num_workers=args.num_workers,
                 collate_fn=None,
                 pin_memory=False,
                 drop_last=False,
-                # prefetch_factor=5,
                 sampler=RandomSampler(train_data) if args.mlperf_bin_shuffle else None
             )
 
@@ -494,7 +495,7 @@ def make_criteo_data_and_loaders(args, offset_to_length_converter=False):
                 batch_size=None,
                 batch_sampler=None,
                 shuffle=False,
-                num_workers=0,
+                num_workers=args.num_workers,
                 collate_fn=None,
                 pin_memory=False,
                 drop_last=False,
@@ -595,6 +596,7 @@ def make_criteo_data_and_loaders(args, offset_to_length_converter=False):
             drop_last=False,  # True
         )
 
+    logging.info('Returning from dataset creation')
     return train_data, train_loader, test_data, test_loader
 
 

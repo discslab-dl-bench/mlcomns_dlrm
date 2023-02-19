@@ -5,9 +5,11 @@
 
 BATCH_SIZE=${1:-2048}
 BATCH_SIZE_EVAL=${2:-16384}
-NUM_BATCHES=${3:-3072}
+NUM_BATCHES=${3:-32768}
+NUM_BATCHES_EVAL=${4:-2048}
+NUM_WORKERS=${5:-0}
 # Use this to send --enable-profiling
-EXTRA_OPTS=${4:-""}
+EXTRA_OPTS=${6:-""}
 
 # start timing
 start=$(date +%s)
@@ -15,17 +17,31 @@ start_fmt=$(date +%Y-%m-%d\ %r)
 echo "---Start running dlrm with Terabyte dataset at $start_fmt---"
 
 # Reference run parameters!
-python dlrm_s_pytorch.py --arch-sparse-feature-size=128 --arch-mlp-bot="13-512-256-128" \
-    --arch-mlp-top="1024-1024-512-256-1" --max-ind-range=40000000 --data-generation=dataset \
+python dlrm_s_pytorch.py \
+    --arch-sparse-feature-size=128 \
+    --arch-mlp-bot="13-512-256-128" \
+    --arch-mlp-top="1024-1024-512-256-1" \
+    --max-ind-range=40000000 \
+    --data-generation=dataset \
     --data-set=terabyte \
     --raw-data-file=/data_terabyte/day \
     --processed-data-file=/proc_data/terabyte_processed.npz \
     --loss-function=bce \
-    --round-targets=True --learning-rate=1.0 --mini-batch-size=${BATCH_SIZE} --num-batches=${NUM_BATCHES} \
-    --print-freq=512 --print-time \
-    --test-freq=1536 --test-mini-batch-size=${BATCH_SIZE_EVAL} \
-    --test-num-workers=16 --memory-map --mlperf-logging \
-    --mlperf-auc-threshold=0.8025 --mlperf-bin-loader --mlperf-bin-shuffle \
+    --round-targets=True \
+    --learning-rate=1.0 \
+    --mini-batch-size=${BATCH_SIZE} \
+    --test-mini-batch-size=${BATCH_SIZE_EVAL} \
+    --num-batches=${NUM_BATCHES} \
+    --num-batches-eval=${NUM_BATCHES_EVAL} \
+    --print-freq=512 \
+    --print-time \
+    --test-freq=16384 \
+    --num-workers=${NUM_WORKERS} \
+    --memory-map \
+    --mlperf-logging \
+    --mlperf-auc-threshold=0.8025 \
+    --mlperf-bin-loader \
+    --save-model=/code/output/dlrm.ckpt \
     --use-gpu $EXTRA_OPTS 2>&1
 
 # python dlrm_s_pytorch.py \
