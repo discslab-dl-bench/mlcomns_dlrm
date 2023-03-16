@@ -41,7 +41,7 @@ python dlrm_s_pytorch.py \
     --mlperf-logging \
     --mlperf-auc-threshold=0.8025 \
     --mlperf-bin-loader \
-    --save-model=/code/output/dlrm.ckpt \
+    --save-model=/code/ckpts/dlrm.ckpt \
     --use-gpu $EXTRA_OPTS 2>&1
 
 # python dlrm_s_pytorch.py \
