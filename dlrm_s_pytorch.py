@@ -785,7 +785,6 @@ def inference(
         scores = []
         targets = []
 
-    t_iter = t0 = perf_counter_ns()
     for i, testBatch in enumerate(test_ld):
         # early exit if nbatches was set by the user and was exceeded
         if nbatches_test > 0 and i >= nbatches_test:
@@ -794,9 +793,7 @@ def inference(
         X_test, lS_o_test, lS_i_test, T_test, W_test, CBPP_test = unpack_batch(
             testBatch
         )
-        log_end(key="eval_load_batch_mem", value={"start": t0, "duration": perf_counter_ns() - t0})
 
-        t_compute = t0 = perf_counter_ns()
         # Skip the batch if batch size not multiple of total ranks
         if ext_dist.my_size > 1 and X_test.size(0) % ext_dist.my_size != 0:
             logging.warn("{} Warning: Skiping the batch {} with size {}".format(utcnow(), i, X_test.size(0)))
@@ -811,9 +808,7 @@ def inference(
             device,
             ndevices=ndevices,
         )
-        log_end(key="eval_forward_pass", value={"start": t0, "duration": perf_counter_ns() - t0})
 
-        t0 = perf_counter_ns()
         ### gather the distributed results on each rank ###
         # For some reason it requires explicit sync before all_gather call if
         # tensor is on GPU memory
@@ -823,9 +818,7 @@ def inference(
 
         if ext_dist.my_size > 1:
             Z_test = ext_dist.all_gather(Z_test, batch_split_lengths)
-        log_end(key="eval_all_gather", value={"start": t0, "duration": perf_counter_ns() - t0})
 
-        t0 = perf_counter_ns()
         if args.mlperf_logging:
             S_test = Z_test.detach().cpu().numpy()  # numpy array
             T_test = T_test.detach().cpu().numpy()  # numpy array
@@ -843,14 +836,10 @@ def inference(
                 test_accu += A_test
                 test_samp += mbs_test
 
-        log_end(key="eval_score_compute", value={"start": t0, "duration": perf_counter_ns() - t0})
-        log_end(key="eval_compute", value={"start": t0, "duration": perf_counter_ns() - t_compute})
-        log_end(key="eval_step_end", value={"start": t_iter, "duration": perf_counter_ns() - t_iter})
 
         # Restart counters for next iteration
         t_iter = t0 = perf_counter_ns()
 
-    t0 = perf_counter_ns()
     if args.mlperf_logging:
         with record_function("DLRM mlperf sklearn metrics compute"):
             scores = np.concatenate(scores, axis=0)
@@ -926,7 +915,6 @@ def inference(
             flush=True,
         )
 
-    log_end(key="eval_metrics_compute", value={"start": t_iter, "duration": perf_counter_ns() - t0}, metadata={"eval_step_num": i})
     return model_metrics_dict, is_best
 
 
@@ -1144,13 +1132,6 @@ def run():
     #Convert the following to numpy array
     ln_bot = np.fromstring(args.arch_mlp_bot, dtype=int, sep="-")
     # input data
-
-    # if args.mlperf_logging:
-    #     mlperf_logger.barrier()
-    #     mlperf_logger.log_end(key=mlperf_logger.constants.INIT_STOP)
-    #     mlperf_logger.barrier()
-    #     mlperf_logger.log_start(key=mlperf_logger.constants.RUN_START)
-    #     mlperf_logger.barrier()
 
     if args.data_generation == "dataset":
         # The direction that we usually go for
@@ -1572,7 +1553,6 @@ def run():
                 
                 log_training_period=True
 
-                t_iter = t0 = perf_counter_ns()
                 for step_num, inputBatch in enumerate(train_ld):
 
                     if step_num < skip_upto_batch:
@@ -1584,14 +1564,8 @@ def run():
                         mlperf_logger.log_start(key="training_start")
                         log_training_period = False
 
-                    # if j == 0 and args.save_onnx:
-                    #     X_onnx, lS_o_onnx, lS_i_onnx, _, _, _ = unpack_batch(inputBatch)
-
 
                     X, lS_o, lS_i, T, W, CBPP = unpack_batch(inputBatch)
-                    log_end(key="load_batch_mem", value={"start": t0, "duration": perf_counter_ns() - t0})
-
-                    t_compute = t0 = perf_counter_ns()
 
                     if args.mlperf_logging:
                         current_time = time_wrap(use_gpu)
@@ -1626,10 +1600,8 @@ def run():
                         device,
                         ndevices=ndevices,
                     )
-                    log_end(key="model_forward_pass", value={"start": t0, "duration": perf_counter_ns() - t0})
 
 
-                    t0 = perf_counter_ns()
                     if ext_dist.my_size > 1:
                         T = T[ext_dist.get_my_slice(mbs)]
                         W = W[ext_dist.get_my_slice(mbs)]
@@ -1639,24 +1611,19 @@ def run():
                     # compute loss and accuracy
                     L = E.detach().cpu().numpy() 
 
-                    log_end(key="loss_tensor_calc", value={"start": t0, "duration": perf_counter_ns() - t0})
 
                     with record_function("DLRM backward"):
-                        t0 = perf_counter_ns()
                         # scaled error gradient propagation
                         # (where we do not accumulate gradients across mini-batches)
                         if (args.mlperf_logging and (step_num + 1) % args.mlperf_grad_accum_iter == 0) or not args.mlperf_logging:
                             optimizer.zero_grad()
                         # backward pass
                         E.backward()
-                        log_end(key="model_backward_pass", value={"start": t0, "duration": perf_counter_ns() - t0})
 
                         # optimizer
                         if (args.mlperf_logging and (step_num + 1) % args.mlperf_grad_accum_iter == 0) or not args.mlperf_logging:
-                            t0 = perf_counter_ns()
                             optimizer.step()
                             lr_scheduler.step()
-                            log_end(key="model_optim_step", value={"start": t0, "duration": perf_counter_ns() - t0})
 
 
                     if args.mlperf_logging:
@@ -1678,12 +1645,9 @@ def run():
                         and (((step_num + 1) % args.test_freq == 0) or (step_num + 1 == nbatches))
                     )
 
-                    log_end(key="all_compute", value={"start": t_iter, "duration": perf_counter_ns() - t_compute})
-                    log_end(key="step_end", value={"start": t_iter, "duration": perf_counter_ns() - t_iter})
 
                     # print time, loss and accuracy
                     if should_print or should_test:
-                        t0 = perf_counter_ns()
                         gT = 1000.0 * total_time / total_iter if args.print_time else -1
                         time_per_sample = gT / args.mini_batch_size
                         total_time = 0
@@ -1710,7 +1674,6 @@ def run():
 
                         total_iter = 0
                         total_samp = 0
-                        log_end(key="printing", value={"start": t_iter, "duration": perf_counter_ns() - t0})
 
                     # testing
                     if should_test:
@@ -1765,54 +1728,13 @@ def run():
                             logging.info("{} Model saved".format(utcnow()))
                             mlperf_logger.log_end(key="checkpoint_stop")
 
-                        # if args.mlperf_logging:
-                        #     mlperf_logger.barrier()
-                        #     mlperf_logger.log_end(
-                        #         key=mlperf_logger.constants.EVAL_STOP,
-                        #         metadata={
-                        #             mlperf_logger.constants.EPOCH_NUM: epoch_num_float
-                        #         },
-                        #     )
 
                         # Uncomment the line below to print out the total time with overhead
                         # print("Total test time for this group: {}" \
                         # .format(time_wrap(use_gpu) - accum_test_time_begin))
                         logging.info(f"{utcnow()} Testing done")
 
-                        # if (args.mlperf_logging and (args.mlperf_acc_threshold > 0) and (best_acc_test > args.mlperf_acc_threshold)):
-                        #     print(
-                        #         "MLPerf testing accuracy threshold "
-                        #         + str(args.mlperf_acc_threshold)
-                        #         + " reached, stop training"
-                        #     )
-                        #     if args.mlperf_logging:
-                        #         mlperf_logger.barrier()
-                        #         mlperf_logger.log_end(
-                        #             key=mlperf_logger.constants.RUN_STOP,
-                        #             metadata={
-                        #                 mlperf_logger.constants.STATUS: mlperf_logger.constants.SUCCESS
-                        #             },
-                        #         )
-                        #     break
                         
-                        # if (args.mlperf_logging and (args.mlperf_auc_threshold > 0) and (best_auc_test > args.mlperf_auc_threshold)):
-                        #     print(
-                        #         "MLPerf testing auc threshold "
-                        #         + str(args.mlperf_auc_threshold)
-                        #         + " reached, stop training"
-                        #     )
-                        #     if args.mlperf_logging:
-                        #         mlperf_logger.barrier()
-                        #         mlperf_logger.log_end(
-                        #             key=mlperf_logger.constants.RUN_STOP,
-                        #             metadata={
-                        #                 mlperf_logger.constants.STATUS: mlperf_logger.constants.SUCCESS
-                        #             },
-                        #         )
-                        #     break
-                        
-                    # Restart counters for next step
-                    t_iter = t0 = perf_counter_ns()
 
                 if args.mlperf_logging:
                     mlperf_logger.barrier()
