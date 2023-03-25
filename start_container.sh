@@ -1,6 +1,7 @@
 #!/bin/bash
 
 TERABYTE_PROC_DIR="/raid/data/dlrm/terabyte_mmap_bin"
+TERABYTE_PROC_DIR="/raid/data/dlrm/generation"
 
 # Default output dir will be where this script is located
 SCRIPT_DIR=$(dirname -- "$( readlink -f -- "$0"; )")
@@ -9,7 +10,7 @@ mkdir -p $OUTPUT_DIR
 
 num_gpus=${1:-8}
 container_name=${2:-train_dlrm}
-IMAGE_NAME=${3:-dlrm:loic}
+IMAGE_NAME=${3:-dlrm:instrumented}
 BATCH_SIZE=${4:-2048}
 BATCH_SIZE_EVAL=${5:-16384}
 NUM_BATCHES=${6:-32768}

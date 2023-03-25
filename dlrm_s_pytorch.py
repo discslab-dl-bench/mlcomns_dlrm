@@ -64,6 +64,8 @@ import time
 from time import perf_counter_ns
 import logging
 
+from numpy import random
+
 # onnx
 # The onnx import causes deprecation warnings every time workers
 # are spawned during testing. So, we filter out those warnings.
@@ -930,6 +932,258 @@ def inference(
     return model_metrics_dict, is_best
 
 
+
+SLEEP_TIMES = {
+    "1": {
+        "16384": {
+            "mean": 0.02855415653235653,
+            "std": 0.0003951206900586799,
+            "median": 0.028462,
+            "q1": 0.028321,
+            "q3": 0.028727
+        },
+        "2048": {
+            "mean": 0.0106204547008547,
+            "std": 0.000492028530254118,
+            "median": 0.010423,
+            "q1": 0.010324,
+            "q3": 0.010951
+        },
+        "32768": {
+            "mean": 0.054725156043956044,
+            "std": 0.0008880627730258545,
+            "median": 0.05486,
+            "q1": 0.054495,
+            "q3": 0.055187
+        },
+        "4096": {
+            "mean": 0.013336942124542124,
+            "std": 0.0003540332527263963,
+            "median": 0.013245,
+            "q1": 0.013156,
+            "q3": 0.013351
+        },
+        "65536": {
+            "mean": 0.11228166788766789,
+            "std": 0.0031914446513238966,
+            "median": 0.112663,
+            "q1": 0.1118,
+            "q3": 0.113595
+        },
+        "8192": {
+            "mean": 0.017864052747252748,
+            "std": 0.00039457382864891555,
+            "median": 0.017741,
+            "q1": 0.01765,
+            "q3": 0.017892
+        }
+    },
+    "2": {
+        "130712": {
+            "mean": 0.20783769865689866,
+            "std": 0.00880301782535112,
+            "median": 0.209522,
+            "q1": 0.208081,
+            "q3": 0.210614
+        },
+        "16384": {
+            "mean": 0.03494698608058608,
+            "std": 0.0009134769313481194,
+            "median": 0.034767,
+            "q1": 0.034581,
+            "q3": 0.034977
+        },
+        "2048": {
+            "mean": 0.022320400732600734,
+            "std": 0.0009634725030545038,
+            "median": 0.022202,
+            "q1": 0.021968,
+            "q3": 0.022526
+        },
+        "32768": {
+            "mean": 0.058039414407814405,
+            "std": 0.0008523906900925239,
+            "median": 0.058045,
+            "q1": 0.057727,
+            "q3": 0.058362
+        },
+        "4096": {
+            "mean": 0.02413158534798535,
+            "std": 0.001024457590934382,
+            "median": 0.023881,
+            "q1": 0.023496,
+            "q3": 0.02447
+        },
+        "65536": {
+            "mean": 0.10973982026862027,
+            "std": 0.0027704101854123813,
+            "median": 0.110166,
+            "q1": 0.109549,
+            "q3": 0.1107
+        },
+        "8192": {
+            "mean": 0.026773270573870574,
+            "std": 0.0010191208955070297,
+            "median": 0.026478,
+            "q1": 0.026111,
+            "q3": 0.027386
+        }
+    },
+    "4": {
+        "130712": {
+            "mean": 0.15574090842490843,
+            "std": 0.019664753339600834,
+            "median": 0.156177,
+            "q1": 0.154504,
+            "q3": 0.157416
+        },
+        "16384": {
+            "mean": 0.037326029304029305,
+            "std": 0.0010477814203624465,
+            "median": 0.037146,
+            "q1": 0.036885,
+            "q3": 0.037454
+        },
+        "2048": {
+            "mean": 0.029378679365079364,
+            "std": 0.0008549411521965629,
+            "median": 0.029232,
+            "q1": 0.029038,
+            "q3": 0.029506
+        },
+        "32768": {
+            "mean": 0.050484073015873016,
+            "std": 0.0013162570563124048,
+            "median": 0.050472,
+            "q1": 0.049487,
+            "q3": 0.051119
+        },
+        "4096": {
+            "mean": 0.031808173382173385,
+            "std": 0.0012602993992285375,
+            "median": 0.03165,
+            "q1": 0.031236,
+            "q3": 0.032045
+        },
+        "65536": {
+            "mean": 0.08662677167277168,
+            "std": 0.0015699583689676795,
+            "median": 0.086573,
+            "q1": 0.086047,
+            "q3": 0.087133
+        },
+        "8192": {
+            "mean": 0.03097951672771673,
+            "std": 0.0009073549189005328,
+            "median": 0.030838,
+            "q1": 0.030527,
+            "q3": 0.031233
+        }
+    },
+    "6": {
+        "130712": {
+            "mean": 0.2513061211233211,
+            "std": 0.016412120770028047,
+            "median": 0.254491,
+            "q1": 0.252376,
+            "q3": 0.256101
+        },
+        "16384": {
+            "mean": 0.05305593504273504,
+            "std": 0.0012036990072802041,
+            "median": 0.053086,
+            "q1": 0.052212,
+            "q3": 0.0536
+        },
+        "2048": {
+            "mean": 0.039714947985347984,
+            "std": 0.0016147103321483619,
+            "median": 0.039275,
+            "q1": 0.03882,
+            "q3": 0.039967
+        },
+        "32768": {
+            "mean": 0.08242503369963369,
+            "std": 0.00143568610698485,
+            "median": 0.082581,
+            "q1": 0.082234,
+            "q3": 0.08291
+        },
+        "4096": {
+            "mean": 0.040670918192918196,
+            "std": 0.001329662702048902,
+            "median": 0.040366,
+            "q1": 0.039958,
+            "q3": 0.040996
+        },
+        "65536": {
+            "mean": 0.1427914568986569,
+            "std": 0.0059766675322005195,
+            "median": 0.143579,
+            "q1": 0.142592,
+            "q3": 0.144511
+        },
+        "8192": {
+            "mean": 0.04200239804639805,
+            "std": 0.0010073191024221838,
+            "median": 0.041822,
+            "q1": 0.041593,
+            "q3": 0.042113
+        }
+    },
+    "8": {
+        "130712": {
+            "mean": 0.27162400024420025,
+            "std": 0.018698324424323023,
+            "median": 0.27493,
+            "q1": 0.273072,
+            "q3": 0.276398
+        },
+        "16384": {
+            "mean": 0.0657928442002442,
+            "std": 0.0051948986365298955,
+            "median": 0.065419,
+            "q1": 0.064485,
+            "q3": 0.066282
+        },
+        "2048": {
+            "mean": 0.04934996166056166,
+            "std": 0.0076664656310997436,
+            "median": 0.048403,
+            "q1": 0.047887,
+            "q3": 0.049556
+        },
+        "32768": {
+            "mean": 0.09482908913308913,
+            "std": 0.004811779178723183,
+            "median": 0.09466,
+            "q1": 0.094203,
+            "q3": 0.09516
+        },
+        "4096": {
+            "mean": 0.049949788766788766,
+            "std": 0.006005869022120402,
+            "median": 0.049486,
+            "q1": 0.048886,
+            "q3": 0.050067
+        },
+        "65536": {
+            "mean": 0.157230547985348,
+            "std": 0.007941243157481912,
+            "median": 0.15786,
+            "q1": 0.156828,
+            "q3": 0.158874
+        },
+        "8192": {
+            "mean": 0.051637525274725274,
+            "std": 0.005999342257245667,
+            "median": 0.051079,
+            "q1": 0.05067,
+            "q3": 0.051655
+        }
+    }
+}
+
 def run():
     ### parse arguments ###
     parser = argparse.ArgumentParser(
@@ -1592,224 +1846,229 @@ def run():
                     log_end(key="load_batch_mem", value={"duration": perf_counter_ns() - t0})
 
                     t_compute = t0 = perf_counter_ns()
+                    
+                    sleep_time_avg = SLEEP_TIMES[str(ndevices)][str(args.mini_batch_size)]['mean']
+                    sleep_time_std = SLEEP_TIMES[str(ndevices)][str(args.mini_batch_size)]['std']
+                    time.sleep(random.normal(sleep_time_avg, sleep_time_std))
+                    
+                    # if args.mlperf_logging:
+                    #     current_time = time_wrap(use_gpu)
+                    #     if previous_iteration_time:
+                    #         iteration_time = current_time - previous_iteration_time
+                    #     else:
+                    #         iteration_time = 0
+                    #     previous_iteration_time = current_time
+                    # else:
+                    #     t1 = time_wrap(use_gpu)
 
-                    if args.mlperf_logging:
-                        current_time = time_wrap(use_gpu)
-                        if previous_iteration_time:
-                            iteration_time = current_time - previous_iteration_time
-                        else:
-                            iteration_time = 0
-                        previous_iteration_time = current_time
-                    else:
-                        t1 = time_wrap(use_gpu)
+                    # # early exit if nbatches was set by the user and has been exceeded
+                    # if nbatches > 0 and step_num >= nbatches:
+                    #     break
 
-                    # early exit if nbatches was set by the user and has been exceeded
-                    if nbatches > 0 and step_num >= nbatches:
-                        break
+                    # # Skip the batch if batch size not multiple of total ranks
+                    # if ext_dist.my_size > 1 and X.size(0) % ext_dist.my_size != 0:
+                    #     logging.warn(
+                    #         "{} Warning: Skiping the batch {} with size {}".format(utcnow(), step_num, X.size(0))
+                    #     )
+                    #     continue
 
-                    # Skip the batch if batch size not multiple of total ranks
-                    if ext_dist.my_size > 1 and X.size(0) % ext_dist.my_size != 0:
-                        logging.warn(
-                            "{} Warning: Skiping the batch {} with size {}".format(utcnow(), step_num, X.size(0))
-                        )
-                        continue
+                    # mbs = T.shape[0]  # = args.mini_batch_size except maybe for last
 
-                    mbs = T.shape[0]  # = args.mini_batch_size except maybe for last
-
-                    # forward pass
-                    # The model will distribute the embeddings here during its first forward pass
-                    Z = dlrm_wrap(
-                        X,
-                        lS_o,
-                        lS_i,
-                        use_gpu,
-                        device,
-                        ndevices=ndevices,
-                    )
-                    log_end(key="model_forward_pass", value={"start": t0, "duration": perf_counter_ns() - t0})
-
-
-                    t0 = perf_counter_ns()
-                    if ext_dist.my_size > 1:
-                        T = T[ext_dist.get_my_slice(mbs)]
-                        W = W[ext_dist.get_my_slice(mbs)]
-
-                    # loss
-                    E = loss_fn_wrap(Z, T, use_gpu, device)
-                    # compute loss and accuracy
-                    L = E.detach().cpu().numpy() 
-
-                    log_end(key="loss_tensor_calc", value={"start": t0, "duration": perf_counter_ns() - t0})
-
-                    with record_function("DLRM backward"):
-                        t0 = perf_counter_ns()
-                        # scaled error gradient propagation
-                        # (where we do not accumulate gradients across mini-batches)
-                        if (args.mlperf_logging and (step_num + 1) % args.mlperf_grad_accum_iter == 0) or not args.mlperf_logging:
-                            optimizer.zero_grad()
-                        # backward pass
-                        E.backward()
-                        log_end(key="model_backward_pass", value={"start": t0, "duration": perf_counter_ns() - t0})
-
-                        # optimizer
-                        if (args.mlperf_logging and (step_num + 1) % args.mlperf_grad_accum_iter == 0) or not args.mlperf_logging:
-                            t0 = perf_counter_ns()
-                            optimizer.step()
-                            lr_scheduler.step()
-                            log_end(key="model_optim_step", value={"start": t0, "duration": perf_counter_ns() - t0})
+                    # # forward pass
+                    # # The model will distribute the embeddings here during its first forward pass
+                    # Z = dlrm_wrap(
+                    #     X,
+                    #     lS_o,
+                    #     lS_i,
+                    #     use_gpu,
+                    #     device,
+                    #     ndevices=ndevices,
+                    # )
+                    
+                    # log_end(key="model_forward_pass", value={"start": t0, "duration": perf_counter_ns() - t0})
 
 
-                    if args.mlperf_logging:
-                        total_time += iteration_time
-                    else:
-                        t2 = time_wrap(use_gpu)
-                        total_time += t2 - t1
+                    # t0 = perf_counter_ns()
+                    # if ext_dist.my_size > 1:
+                    #     T = T[ext_dist.get_my_slice(mbs)]
+                    #     W = W[ext_dist.get_my_slice(mbs)]
 
-                    total_loss += L * mbs
-                    total_iter += 1
-                    total_samp += mbs
+                    # # loss
+                    # E = loss_fn_wrap(Z, T, use_gpu, device)
+                    # # compute loss and accuracy
+                    # L = E.detach().cpu().numpy() 
 
-                    should_print = ((step_num + 1) % args.print_freq == 0) or (
-                        step_num + 1 == nbatches
-                    )
-                    should_test = (
-                        (args.test_freq > 0)
-                        and (args.data_generation in ["dataset", "random"])
-                        and (((step_num + 1) % args.test_freq == 0) or (step_num + 1 == nbatches))
-                    )
+                    # log_end(key="loss_tensor_calc", value={"start": t0, "duration": perf_counter_ns() - t0})
+
+                    # with record_function("DLRM backward"):
+                    #     t0 = perf_counter_ns()
+                    #     # scaled error gradient propagation
+                    #     # (where we do not accumulate gradients across mini-batches)
+                    #     if (args.mlperf_logging and (step_num + 1) % args.mlperf_grad_accum_iter == 0) or not args.mlperf_logging:
+                    #         optimizer.zero_grad()
+                    #     # backward pass
+                    #     E.backward()
+                    #     log_end(key="model_backward_pass", value={"start": t0, "duration": perf_counter_ns() - t0})
+
+                    #     # optimizer
+                    #     if (args.mlperf_logging and (step_num + 1) % args.mlperf_grad_accum_iter == 0) or not args.mlperf_logging:
+                    #         t0 = perf_counter_ns()
+                    #         optimizer.step()
+                    #         lr_scheduler.step()
+                    #         log_end(key="model_optim_step", value={"start": t0, "duration": perf_counter_ns() - t0})
+
+
+                    # if args.mlperf_logging:
+                    #     total_time += iteration_time
+                    # else:
+                    #     t2 = time_wrap(use_gpu)
+                    #     total_time += t2 - t1
+
+                    # total_loss += L * mbs
+                    # total_iter += 1
+                    # total_samp += mbs
+
+                    # should_print = ((step_num + 1) % args.print_freq == 0) or (
+                    #     step_num + 1 == nbatches
+                    # )
+                    # should_test = (
+                    #     (args.test_freq > 0)
+                    #     and (args.data_generation in ["dataset", "random"])
+                    #     and (((step_num + 1) % args.test_freq == 0) or (step_num + 1 == nbatches))
+                    # )
 
                     log_end(key="all_compute", value={"start": t_iter, "duration": perf_counter_ns() - t_compute})
                     log_end(key="step_end", value={"start": t_iter, "duration": perf_counter_ns() - t_iter})
 
-                    # print time, loss and accuracy
-                    if should_print or should_test:
-                        t0 = perf_counter_ns()
-                        gT = 1000.0 * total_time / total_iter if args.print_time else -1
-                        time_per_sample = gT / args.mini_batch_size
-                        total_time = 0
+                    # # print time, loss and accuracy
+                    # if should_print or should_test:
+                    #     t0 = perf_counter_ns()
+                    #     gT = 1000.0 * total_time / total_iter if args.print_time else -1
+                    #     time_per_sample = gT / args.mini_batch_size
+                    #     total_time = 0
 
-                        train_loss = total_loss / total_samp
-                        total_loss = 0
+                    #     train_loss = total_loss / total_samp
+                    #     total_loss = 0
 
-                        str_run_type = (
-                            "inference" if args.inference_only else "training"
-                        )
+                    #     str_run_type = (
+                    #         "inference" if args.inference_only else "training"
+                    #     )
 
-                        # wall_time = ""
-                        # if args.print_wall_time:
-                        #     wall_time = " ({})".format(time.strftime("%H:%M"))
+                    #     # wall_time = ""
+                    #     # if args.print_wall_time:
+                    #     #     wall_time = " ({})".format(time.strftime("%H:%M"))
 
-                        logging.info(f"{utcnow()} Finished {str_run_type} on batch {step_num+1}/{nbatches} of epoch {epoch_num}, {gT:.2f} ms/batch, {time_per_sample:.2f} ms/sample, loss {train_loss:.6f}")
-                        # Print out GPU memory use (gives more precise info than nvidia-smi)
-                        # for i in range(torch.cuda.device_count()):
-                        #     # logging.info(f"{utcnow()} {torch.cuda.memory_summary(torch.device(f'cuda:{i}'), abbreviated=True)}")
-                        #     logging.info(f"{utcnow()} GPU {i} Allocated memory: {torch.cuda.memory_allocated(torch.device(f'cuda:{i}'))}")
+                    #     logging.info(f"{utcnow()} Finished {str_run_type} on batch {step_num+1}/{nbatches} of epoch {epoch_num}, {gT:.2f} ms/batch, {time_per_sample:.2f} ms/sample, loss {train_loss:.6f}")
+                    #     # Print out GPU memory use (gives more precise info than nvidia-smi)
+                    #     # for i in range(torch.cuda.device_count()):
+                    #     #     # logging.info(f"{utcnow()} {torch.cuda.memory_summary(torch.device(f'cuda:{i}'), abbreviated=True)}")
+                    #     #     logging.info(f"{utcnow()} GPU {i} Allocated memory: {torch.cuda.memory_allocated(torch.device(f'cuda:{i}'))}")
 
-                        log_iter = nbatches * epoch_num + step_num + 1
-                        writer.add_scalar("Train/Loss", train_loss, log_iter)
+                    #     log_iter = nbatches * epoch_num + step_num + 1
+                    #     writer.add_scalar("Train/Loss", train_loss, log_iter)
 
-                        total_iter = 0
-                        total_samp = 0
-                        log_end(key="printing", value={"start": t_iter, "duration": perf_counter_ns() - t0})
+                    #     total_iter = 0
+                    #     total_samp = 0
+                    #     log_end(key="printing", value={"start": t_iter, "duration": perf_counter_ns() - t0})
 
-                    # testing
-                    if should_test:
-                        log_training_period = True
-                        epoch_num_float = (step_num + 1) / len(train_ld) + epoch_num + 1
+                    # # testing
+                    # if should_test:
+                    #     log_training_period = True
+                    #     epoch_num_float = (step_num + 1) / len(train_ld) + epoch_num + 1
                         
-                        mlperf_logger.barrier()
-                        mlperf_logger.log_start(key="training_stop")
-                        mlperf_logger.log_start(
-                            key=mlperf_logger.constants.EVAL_START,
-                            metadata={
-                                mlperf_logger.constants.EPOCH_NUM: epoch_num_float
-                            },
-                        )
+                    #     mlperf_logger.barrier()
+                    #     mlperf_logger.log_start(key="training_stop")
+                    #     mlperf_logger.log_start(
+                    #         key=mlperf_logger.constants.EVAL_START,
+                    #         metadata={
+                    #             mlperf_logger.constants.EPOCH_NUM: epoch_num_float
+                    #         },
+                    #     )
 
-                        # don't measure training iter time in a test iteration
-                        if args.mlperf_logging:
-                            previous_iteration_time = None
-                        logging.info(
-                            "{} Testing at - {}/{} of epoch {},".format(utcnow(), step_num + 1, nbatches, epoch_num)
-                        )
-                        model_metrics_dict, is_best = inference(
-                            args,
-                            dlrm,
-                            best_acc_test,
-                            best_auc_test,
-                            test_ld,
-                            device,
-                            use_gpu,
-                            log_iter,
-                        )
+                    #     # don't measure training iter time in a test iteration
+                    #     if args.mlperf_logging:
+                    #         previous_iteration_time = None
+                    #     logging.info(
+                    #         "{} Testing at - {}/{} of epoch {},".format(utcnow(), step_num + 1, nbatches, epoch_num)
+                    #     )
+                    #     model_metrics_dict, is_best = inference(
+                    #         args,
+                    #         dlrm,
+                    #         best_acc_test,
+                    #         best_auc_test,
+                    #         test_ld,
+                    #         device,
+                    #         use_gpu,
+                    #         log_iter,
+                    #     )
 
-                        mlperf_logger.log_end(
-                            key=mlperf_logger.constants.EVAL_STOP,
-                            metadata={
-                                mlperf_logger.constants.EPOCH_NUM: epoch_num_float
-                            },
-                        )
+                    #     mlperf_logger.log_end(
+                    #         key=mlperf_logger.constants.EVAL_STOP,
+                    #         metadata={
+                    #             mlperf_logger.constants.EPOCH_NUM: epoch_num_float
+                    #         },
+                    #     )
 
-                        # if (is_best and not (args.save_model == "") and not args.inference_only):
-                        with record_function("DLRM ckpt"):
-                            mlperf_logger.log_start(key="checkpoint_start")
-                            model_metrics_dict["epoch"] = epoch_num
-                            model_metrics_dict["iter"] = step_num + 1
-                            model_metrics_dict["train_loss"] = train_loss
-                            model_metrics_dict["total_loss"] = total_loss
-                            model_metrics_dict[
-                                "opt_state_dict"
-                            ] = optimizer.state_dict()
-                            logging.info("{} Saving model to {}".format(utcnow(), args.save_model))
-                            torch.save(model_metrics_dict, args.save_model)
-                            logging.info("{} Model saved".format(utcnow()))
-                            mlperf_logger.log_end(key="checkpoint_stop")
+                    #     # if (is_best and not (args.save_model == "") and not args.inference_only):
+                    #     with record_function("DLRM ckpt"):
+                    #         mlperf_logger.log_start(key="checkpoint_start")
+                    #         model_metrics_dict["epoch"] = epoch_num
+                    #         model_metrics_dict["iter"] = step_num + 1
+                    #         model_metrics_dict["train_loss"] = train_loss
+                    #         model_metrics_dict["total_loss"] = total_loss
+                    #         model_metrics_dict[
+                    #             "opt_state_dict"
+                    #         ] = optimizer.state_dict()
+                    #         logging.info("{} Saving model to {}".format(utcnow(), args.save_model))
+                    #         torch.save(model_metrics_dict, args.save_model)
+                    #         logging.info("{} Model saved".format(utcnow()))
+                    #         mlperf_logger.log_end(key="checkpoint_stop")
 
-                        # if args.mlperf_logging:
-                        #     mlperf_logger.barrier()
-                        #     mlperf_logger.log_end(
-                        #         key=mlperf_logger.constants.EVAL_STOP,
-                        #         metadata={
-                        #             mlperf_logger.constants.EPOCH_NUM: epoch_num_float
-                        #         },
-                        #     )
+                    #     # if args.mlperf_logging:
+                    #     #     mlperf_logger.barrier()
+                    #     #     mlperf_logger.log_end(
+                    #     #         key=mlperf_logger.constants.EVAL_STOP,
+                    #     #         metadata={
+                    #     #             mlperf_logger.constants.EPOCH_NUM: epoch_num_float
+                    #     #         },
+                    #     #     )
 
-                        # Uncomment the line below to print out the total time with overhead
-                        # print("Total test time for this group: {}" \
-                        # .format(time_wrap(use_gpu) - accum_test_time_begin))
-                        logging.info(f"{utcnow()} Testing done")
+                    #     # Uncomment the line below to print out the total time with overhead
+                    #     # print("Total test time for this group: {}" \
+                    #     # .format(time_wrap(use_gpu) - accum_test_time_begin))
+                    #     logging.info(f"{utcnow()} Testing done")
 
-                        # if (args.mlperf_logging and (args.mlperf_acc_threshold > 0) and (best_acc_test > args.mlperf_acc_threshold)):
-                        #     print(
-                        #         "MLPerf testing accuracy threshold "
-                        #         + str(args.mlperf_acc_threshold)
-                        #         + " reached, stop training"
-                        #     )
-                        #     if args.mlperf_logging:
-                        #         mlperf_logger.barrier()
-                        #         mlperf_logger.log_end(
-                        #             key=mlperf_logger.constants.RUN_STOP,
-                        #             metadata={
-                        #                 mlperf_logger.constants.STATUS: mlperf_logger.constants.SUCCESS
-                        #             },
-                        #         )
-                        #     break
+                    #     # if (args.mlperf_logging and (args.mlperf_acc_threshold > 0) and (best_acc_test > args.mlperf_acc_threshold)):
+                    #     #     print(
+                    #     #         "MLPerf testing accuracy threshold "
+                    #     #         + str(args.mlperf_acc_threshold)
+                    #     #         + " reached, stop training"
+                    #     #     )
+                    #     #     if args.mlperf_logging:
+                    #     #         mlperf_logger.barrier()
+                    #     #         mlperf_logger.log_end(
+                    #     #             key=mlperf_logger.constants.RUN_STOP,
+                    #     #             metadata={
+                    #     #                 mlperf_logger.constants.STATUS: mlperf_logger.constants.SUCCESS
+                    #     #             },
+                    #     #         )
+                    #     #     break
                         
-                        # if (args.mlperf_logging and (args.mlperf_auc_threshold > 0) and (best_auc_test > args.mlperf_auc_threshold)):
-                        #     print(
-                        #         "MLPerf testing auc threshold "
-                        #         + str(args.mlperf_auc_threshold)
-                        #         + " reached, stop training"
-                        #     )
-                        #     if args.mlperf_logging:
-                        #         mlperf_logger.barrier()
-                        #         mlperf_logger.log_end(
-                        #             key=mlperf_logger.constants.RUN_STOP,
-                        #             metadata={
-                        #                 mlperf_logger.constants.STATUS: mlperf_logger.constants.SUCCESS
-                        #             },
-                        #         )
-                        #     break
+                    #     # if (args.mlperf_logging and (args.mlperf_auc_threshold > 0) and (best_auc_test > args.mlperf_auc_threshold)):
+                    #     #     print(
+                    #     #         "MLPerf testing auc threshold "
+                    #     #         + str(args.mlperf_auc_threshold)
+                    #     #         + " reached, stop training"
+                    #     #     )
+                    #     #     if args.mlperf_logging:
+                    #     #         mlperf_logger.barrier()
+                    #     #         mlperf_logger.log_end(
+                    #     #             key=mlperf_logger.constants.RUN_STOP,
+                    #     #             metadata={
+                    #     #                 mlperf_logger.constants.STATUS: mlperf_logger.constants.SUCCESS
+                    #     #             },
+                    #     #         )
+                    #     #     break
                         
                     # Restart counters for next step
                     t_iter = t0 = perf_counter_ns()

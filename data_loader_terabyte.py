@@ -227,6 +227,12 @@ class CriteoBinDataset(Dataset):
         print('data file:', data_file, 'number of batches:', self.num_entries)
         self.file = open(data_file, 'rb')
 
+        # array([10000000,    38985,    17278,     7418,    20242,        3,
+        #    7120,     1543,       63,  9999978,  2642264,   397262,
+        #      10,     2208,    11931,      155,        4,      976,
+        #      14, 10000000,  9832963, 10000000,   573162,    12969,
+        #     108,       36], dtype=int32)
+        
         with np.load(counts_file) as data:
             self.counts = data["counts"]
 
