@@ -1589,7 +1589,7 @@ def run():
 
 
                     X, lS_o, lS_i, T, W, CBPP = unpack_batch(inputBatch)
-                    log_end(key="load_batch_mem", value={"start": t0, "duration": perf_counter_ns() - t0})
+                    log_end(key="load_batch_mem", value={"duration": perf_counter_ns() - t0})
 
                     t_compute = t0 = perf_counter_ns()
 
