@@ -38,5 +38,5 @@ docker run -it --rm \
     -v $TERABYTE_PROC_DIR:/proc_data \
     -v $LOGGING_DIR:/code/output \
     -v $OUTPUT_DIR:/code/ckpts \
-    $IMAGE_NAME /bin/bash run_terabyte_mmap_bin.sh $BATCH_SIZE $BATCH_SIZE_EVAL $NUM_BATCHES $NUM_BATCHES_EVAL $NUM_WORKERS $EXTRA_OPTS
+    $IMAGE_NAME /bin/bash run_terabyte_mmap_bin.sh $BATCH_SIZE $BATCH_SIZE_EVAL $NUM_BATCHES $NUM_BATCHES_EVAL $NUM_WORKERS
 
