@@ -1861,9 +1861,9 @@ def run():
                     # else:
                     #     t1 = time_wrap(use_gpu)
 
-                    # # early exit if nbatches was set by the user and has been exceeded
-                    # if nbatches > 0 and step_num >= nbatches:
-                    #     break
+                    # early exit if nbatches was set by the user and has been exceeded
+                    if nbatches > 0 and step_num >= nbatches:
+                        break
 
                     # # Skip the batch if batch size not multiple of total ranks
                     # if ext_dist.my_size > 1 and X.size(0) % ext_dist.my_size != 0:

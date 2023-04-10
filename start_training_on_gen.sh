@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TERABYTE_PROC_DIR="/raid/data/dlrm/generation"
+TERABYTE_PROC_DIR="/raid/data/dlrm/gen2"
 
 # Default output dir will be where this script is located
 OUTPUT_DIR="/raid/data/dlrm/run_output"
@@ -14,7 +14,7 @@ mkdir -p $OUTPUT_DIR
 NUM_GPUS=${1:-8}
 CONTAINER_NAME=${2:-train_dlrm}
 LOGGING_DIR=${3:-"$SCRIPT_DIR/output"}
-IMAGE_NAME=${4:-"dlrm:instrumented"}
+IMAGE_NAME=${4:-"dlrm:sleep"}
 BATCH_SIZE=${5:-32768}
 BATCH_SIZE_EVAL=${6:-16384}
 NUM_BATCHES=${7:-32768}

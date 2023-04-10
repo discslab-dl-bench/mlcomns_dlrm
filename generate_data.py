@@ -1,16 +1,8 @@
 
-from fcntl import F_NOTIFY
-import os, random
+import os
 import argparse
 import pathlib
-import shutil
-from unicodedata import category
-from click import pass_obj
 import numpy as np
-import tensorflow as tf
-import random
-import collections
-import time
 
 
 CATEGORY_RANGES = [10000000,    38985,    17278,     7418,    20242,        3,
@@ -45,5 +37,7 @@ if __name__ == "__main__":
     if args.desired_size < 0:
         print("ERROR: Desired size cannot be negative!")
         exit(-1)
+
+    pathlib.Path(args.output_path).mkdir(exist_ok=True, parents=True)
 
     generate_data_dlrm_bin(args.output_path, args.desired_size)

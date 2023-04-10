@@ -1,7 +1,6 @@
 #!/bin/bash
 
 TERABYTE_PROC_DIR="/raid/data/dlrm/terabyte_mmap_bin"
-TERABYTE_PROC_DIR="/raid/data/dlrm/generation"
 
 # Default output dir will be where this script is located
 SCRIPT_DIR=$(dirname -- "$( readlink -f -- "$0"; )")
