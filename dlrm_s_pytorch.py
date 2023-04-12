@@ -1794,6 +1794,9 @@ def run():
 
     logging.info(f"{utcnow()} Starting Training")
 
+    sleep_time_avg = np.dot([6.31850988e-03, 1.47435947e-06], [ndevices, args.mini_batch_size]) - 0.0035671384995684535
+    sleep_time_std = max(np.dot([3.35919846e-04, 6.32267933e-08], [ndevices, args.mini_batch_size]) - 0.0013904127910698847, 0)
+
     ext_dist.barrier()
     with torch.autograd.profiler.profile(args.enable_profiling, use_cuda=False, with_stack=True) as prof:
         if not args.inference_only:
@@ -1846,9 +1849,8 @@ def run():
                     log_end(key="load_batch_mem", value={"duration": perf_counter_ns() - t0})
 
                     t_compute = t0 = perf_counter_ns()
-                    
-                    sleep_time_avg = SLEEP_TIMES[str(ndevices)][str(args.mini_batch_size)]['mean']
-                    sleep_time_std = SLEEP_TIMES[str(ndevices)][str(args.mini_batch_size)]['std']
+                            
+
                     time.sleep(random.normal(sleep_time_avg, sleep_time_std))
                     
                     # if args.mlperf_logging:

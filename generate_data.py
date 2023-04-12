@@ -15,7 +15,7 @@ CATEGORY_RANGES = [10000000,    38985,    17278,     7418,    20242,        3,
 def generate_data_dlrm_bin(output_path, desired_size): 
     total_size = 0
     while total_size < desired_size: 
-        fn = f"{output_path}/preprocessed.bin"
+        fn = f"{output_path}/terabyte_processed_train.bin"
         with open(fn, 'ab') as output_file:
             num_instance = 6548660
             X_int = np.random.randint(2557264, size = (num_instance, 13))
@@ -24,7 +24,8 @@ def generate_data_dlrm_bin(output_path, desired_size):
             np_data = np.concatenate([y.reshape(-1, 1), X_int, X_cat], axis=1)
             np_data = np_data.astype(np.int32)
             output_file.write(np_data.tobytes())
-        total_size += os.path.getsize(fn)
+            output_file.flush()
+        total_size = os.path.getsize(fn)
         print("current size", total_size)
 
 

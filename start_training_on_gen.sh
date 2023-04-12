@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TERABYTE_PROC_DIR="/raid/data/dlrm/gen2"
+TERABYTE_PROC_DIR="/raid/data/dlio/data/dlrm/train"
 
 # Default output dir will be where this script is located
 OUTPUT_DIR="/raid/data/dlrm/run_output"
@@ -14,7 +14,7 @@ mkdir -p $OUTPUT_DIR
 NUM_GPUS=${1:-8}
 CONTAINER_NAME=${2:-train_dlrm}
 LOGGING_DIR=${3:-"$SCRIPT_DIR/output"}
-IMAGE_NAME=${4:-"dlrm:sleep"}
+IMAGE_NAME=${4:-"dlrm:instrumented"}
 BATCH_SIZE=${5:-32768}
 BATCH_SIZE_EVAL=${6:-16384}
 NUM_BATCHES=${7:-32768}
@@ -38,5 +38,5 @@ docker run -it --rm \
     -v $TERABYTE_PROC_DIR:/proc_data \
     -v $LOGGING_DIR:/code/output \
     -v $OUTPUT_DIR:/code/ckpts \
-    $IMAGE_NAME /bin/bash run_terabyte_mmap_bin.sh $BATCH_SIZE $BATCH_SIZE_EVAL $NUM_BATCHES $NUM_BATCHES_EVAL $NUM_WORKERS $EXTRA_OPTS
+    $IMAGE_NAME /bin/bash run_terabyte_mmap_bin.sh $BATCH_SIZE $BATCH_SIZE_EVAL $NUM_BATCHES $NUM_BATCHES_EVAL $NUM_WORKERS
 

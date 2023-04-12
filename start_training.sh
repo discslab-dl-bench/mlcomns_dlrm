@@ -11,11 +11,11 @@ mkdir -p $OUTPUT_DIR
 
 #Change line 9 for choosing mounted dataset
 
-NUM_GPUS=${1:-8}
+NUM_GPUS=${1:-1}
 CONTAINER_NAME=${2:-train_dlrm}
 LOGGING_DIR=${3:-"$SCRIPT_DIR/output"}
 IMAGE_NAME=${4:-"dlrm:sleep"}
-BATCH_SIZE=${5:-32768}
+BATCH_SIZE=${5:-2048}
 BATCH_SIZE_EVAL=${6:-16384}
 NUM_BATCHES=${7:-32768}
 NUM_BATCHES_EVAL=${8:-2048}
