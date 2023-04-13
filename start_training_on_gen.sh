@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TERABYTE_PROC_DIR="/raid/data/dlrm/generation"
+TERABYTE_PROC_DIR="/raid/data/dlio/data/dlrm/train"
 
 # Default output dir will be where this script is located
 OUTPUT_DIR="/raid/data/dlrm/run_output"
