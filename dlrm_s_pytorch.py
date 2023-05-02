@@ -1794,6 +1794,7 @@ def run():
 
     logging.info(f"{utcnow()} Starting Training")
 
+    # Sleep time formulas
     sleep_time_avg = np.dot([6.31850988e-03, 1.47435947e-06], [ndevices, args.mini_batch_size]) - 0.0035671384995684535
     sleep_time_std = max(np.dot([3.35919846e-04, 6.32267933e-08], [ndevices, args.mini_batch_size]) - 0.0013904127910698847, 0)
 
