@@ -1589,9 +1589,6 @@ def run():
 
 
                     X, lS_o, lS_i, T, W, CBPP = unpack_batch(inputBatch)
-                    log_end(key="load_batch_mem", value={"duration": perf_counter_ns() - t0})
-
-                    t_compute = t0 = perf_counter_ns()
 
                     if args.mlperf_logging:
                         current_time = time_wrap(use_gpu)
@@ -1626,10 +1623,8 @@ def run():
                         device,
                         ndevices=ndevices,
                     )
-                    log_end(key="model_forward_pass", value={"start": t0, "duration": perf_counter_ns() - t0})
 
 
-                    t0 = perf_counter_ns()
                     if ext_dist.my_size > 1:
                         T = T[ext_dist.get_my_slice(mbs)]
                         W = W[ext_dist.get_my_slice(mbs)]
@@ -1639,24 +1634,19 @@ def run():
                     # compute loss and accuracy
                     L = E.detach().cpu().numpy() 
 
-                    log_end(key="loss_tensor_calc", value={"start": t0, "duration": perf_counter_ns() - t0})
 
                     with record_function("DLRM backward"):
-                        t0 = perf_counter_ns()
                         # scaled error gradient propagation
                         # (where we do not accumulate gradients across mini-batches)
                         if (args.mlperf_logging and (step_num + 1) % args.mlperf_grad_accum_iter == 0) or not args.mlperf_logging:
                             optimizer.zero_grad()
                         # backward pass
                         E.backward()
-                        log_end(key="model_backward_pass", value={"start": t0, "duration": perf_counter_ns() - t0})
 
                         # optimizer
                         if (args.mlperf_logging and (step_num + 1) % args.mlperf_grad_accum_iter == 0) or not args.mlperf_logging:
-                            t0 = perf_counter_ns()
                             optimizer.step()
                             lr_scheduler.step()
-                            log_end(key="model_optim_step", value={"start": t0, "duration": perf_counter_ns() - t0})
 
 
                     if args.mlperf_logging:
@@ -1678,7 +1668,6 @@ def run():
                         and (((step_num + 1) % args.test_freq == 0) or (step_num + 1 == nbatches))
                     )
 
-                    log_end(key="all_compute", value={"start": t_iter, "duration": perf_counter_ns() - t_compute})
                     log_end(key="step_end", value={"start": t_iter, "duration": perf_counter_ns() - t_iter})
 
                     # print time, loss and accuracy

@@ -237,22 +237,16 @@ class CriteoBinDataset(Dataset):
         return self.num_entries
 
     def __getitem__(self, idx):
-        t0 = perf_counter_ns()
         # Reads in a whole batch of data at once from the file
         self.file.seek(idx * self.bytes_per_entry, 0)
         raw_data = self.file.read(self.bytes_per_entry)
         array = np.frombuffer(raw_data, dtype=np.int32)
-        log_end(key="batch_load", value={"duration": perf_counter_ns() - t0})
-
-        t0 = perf_counter_ns()
         tensor = torch.from_numpy(array).view((-1, self.tot_fea))
         tensor = _transform_features(x_int_batch=tensor[:, 1:14],
                                    x_cat_batch=tensor[:, 14:],
                                    y_batch=tensor[:, 0],
                                    max_ind_range=self.max_ind_range,
                                    flag_input_torch_tensor=True)
-        log_end(key="batch_preproc", value={"duration": perf_counter_ns() - t0})
-        
         return tensor
 
     def __del__(self):
