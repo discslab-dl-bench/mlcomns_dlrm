@@ -2,9 +2,10 @@
 
 SCRIPT_DIR=$(dirname -- "$( readlink -f -- "$0"; )")
 
-# Change these directories
-DATA_DIR="$SCRIPT_DIR/data"
-OUTPUT_DIR="$SCRIPT_DIR/output"
+# Change these directories to your values!
+DATA_DIR=""
+OUTPUT_DIR=""
+
 
 NUM_GPUS=${1:-8}
 CONTAINER_NAME=${2:-train_dlrm}
