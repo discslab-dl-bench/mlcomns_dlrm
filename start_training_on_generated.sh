@@ -6,10 +6,11 @@ SCRIPT_DIR=$(dirname -- "$( readlink -f -- "$0"; )")
 DATA_DIR=""
 OUTPUT_DIR=""
 
+
 NUM_GPUS=${1:-8}
 CONTAINER_NAME=${2:-train_dlrm}
 LOGGING_DIR=${3:-"$SCRIPT_DIR/output"}
-IMAGE_NAME=${4:-dlrm:sleep}
+IMAGE_NAME=${4:-dlrm:instrumented}
 BATCH_SIZE=${5:-32768}
 BATCH_SIZE_EVAL=${6:-16384}
 NUM_BATCHES=${7:-32768}
